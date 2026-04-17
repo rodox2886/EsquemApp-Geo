@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor GIS Profesional</title>
+    
+    <!-- Librerías de React y Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+        // --- Íconos SVG Inline ---
+        const IconLayers = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>;
+        const IconMaximize = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>;
+        const IconEye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+        const IconEyeOff = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+        const IconFileText = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+        const IconX = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+        const IconZap = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+        const IconPlus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+
+        // --- Constantes Técnicas ---
+        const isValidNum = (n) => typeof n === 'number' && !isNaN(n) && isFinite(n);
+        const isNodeValid = (el) => el && isValidNum(el.x) && isValidNum(el.y);
+
+        // COORDENADAS ESTABLES
+        const getRenderX = (x, flipX) => flipX ? -x : x;
+        const getRenderY = (y, flipY) => flipY ? y : -y;
+
+        const CT_CLASSES = [1186, 1170, 1232, 1183, 1179, 1461];
+        const SUPPLY_CLASSES = [111, 190, 1373];
+        const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 'Puente'];
+        const POLE_CLASSES = [15, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
+        
+        const MT_LINE_CLASSES = [1089, 1091];
+        const MT_POLE_CLASSES = [52, 56, 408, 422, 1119];
+
+        function App() {
+          const canvasRef = useRef(null);
+          const [rawData, setRawData] = useState('');
+          const [data, setData] = useState(null);
+          const [connectedIds, setConnectedIds] = useState(new Set());
+          
+          const [message, setMessage] = useState(null); 
+          
+          const [selectedFeature, setSelectedFeature] = useState(null);
+          const [isToolPanelOpen, setIsToolPanelOpen] = useState(true);
+          const [viewMode, setViewMode] = useState('input');
+          const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+          const [isDragging, setIsDragging] = useState(false);
+          const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+          const [exportFlipY, setExportFlipY] = useState(true);
+          const [exportFlipX, setExportFlipX] = useState(false);
+          const [showMT, setShowMT] = useState(false);
+          // NUEVO ESTADO: Ocultar nombres de calles por defecto
+          const [showStreetNames, setShowStreetNames] = useState(false);
+          const [highlightConnected, setHighlightConnected] = useState(true);
+          const [onlyShowConnected, setOnlyShowConnected] = useState(false);
+          
+          const [manualEdits, setManualEdits] = useState({});
+          const [draggingFeature, setDraggingFeature] = useState(null);
+          const [featureDragInfo, setFeatureDragInfo] = useState(null);
+          const [hoveredFeature, setHoveredFeature] = useState(null);
+          
+          const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+          const [importText, setImportText] = useState('');
+          const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+          // Vínculos Manuales
+          const [manualSupplyLinks, setManualSupplyLinks] = useState({});
+          const [linkingMode, setLinkingMode] = useState(null);
+
+          // Diccionario de Calles
+          const [streetDictionary, setStreetDictionary] = useState({});
+          const [streetRawData, setStreetRawData] = useState('');
+
+          const handleManualEdit = useCallback((id, field, value) => {
+            setManualEdits(prev => ({
+              ...prev,
+              [id]: {
+                ...(prev[id] || { dx: 0, dy: 0, rot: 0 }),
+                [field]: parseFloat(value) || 0
+              }
+            }));
+          }, []);
+
+          const removeManualLink = useCallback((fid) => {
+              setManualSupplyLinks(prev => {
+                  const next = { ...prev };
+                  if (next[fid]) delete next[fid];
+                  const keysToRemove = Object.keys(next).filter(k => next[k] === fid);
+                  keysToRemove.forEach(k => delete next[k]);
+                  return next;
+              });
+          }, []);
+
+          const currentManualLink = useMemo(() => {
+              if (!selectedFeature) return null;
+              const fid = String(selectedFeature.id);
+              if ([111, 190, 1373].includes(selectedFeature.class)) {
+                  return manualSupplyLinks[fid] || null;
+              } else if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+                  const sId = Object.keys(manualSupplyLinks).find(k => String(manualSupplyLinks[k]) === fid);
+                  return sId || null;
+              }
+              return null;
+          }, [selectedFeature, manualSupplyLinks]);
+
+          // --- 1. Lógica Geométrica y Trazabilidad de Red ---
+
+          const networkEnds = useMemo(() => {
+            if (!data) return [];
+            const ends = [];
+            const pointMap = {};
+            const keyF = (nx, ny) => `${Math.round(nx)},${Math.round(ny)}`;
+            
+            data.elements.forEach(o => {
+              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
+              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
+                const c = o._stdCoords;
+                for(let i=0; i<c.length; i+=2) {
+                    const k = keyF(c[i], c[i+1]);
+                    pointMap[k] = (pointMap[k] || 0) + 1;
+                }
+              }
+            });
+
+            data.elements.forEach(o => {
+              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
+              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
+                const c = o._stdCoords;
+                if (c.length >= 4) {
+                    const last = c.length - 2;
+                    ends.push({ x: c[0], y: c[1], prevX: c[2], prevY: c[3], degree: pointMap[keyF(c[0], c[1])], id: o.id });
+                    ends.push({ x: c[last], y: c[last+1], prevX: c[last-2], prevY: c[last-1], degree: pointMap[keyF(c[last], c[last+1])], id: o.id });
+                }
+              }
+            });
+            return ends;
+          }, [data, showMT]);
+
+          const getNearestCableEnd = useCallback((x, y, usedSet = null) => {
+            if (!networkEnds || networkEnds.length === 0) return null;
+            let nearest = null;
+            let bestDist = 10.0; 
+            
+            const isUsed = (e) => usedSet && usedSet.has(e.id + '_' + e.x + '_' + e.y);
+
+            networkEnds.filter(e => e.degree === 1 && !isUsed(e)).forEach(e => {
+                const d = Math.hypot(x - e.x, y - e.y);
+                if (d < bestDist) { bestDist = d; nearest = e; }
+            });
+            
+            if (!nearest) {
+                bestDist = 5.0; 
+                networkEnds.filter(e => e.degree > 1 && !isUsed(e)).forEach(e => {
+                    const d = Math.hypot(x - e.x, y - e.y);
+                    if (d < bestDist) { bestDist = d; nearest = e; }
+                });
+            }
+            return nearest;
+          }, [networkEnds]);
+
+          const pillarSnaps = useMemo(() => {
+              if (!data) return {};
+              const snaps = {};
+              const used = new Set();
+              data.elements.forEach(el => {
+                  if ([1122, 1123, 1369].includes(el.class)) {
+                      const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
+                      const fx = el.x + (el._autoDx || 0) + edit.dx;
+                      const fy = el.y + (el._autoDy || 0) + edit.dy;
+                      const snap = getNearestCableEnd(fx, fy, used);
+                      if (snap) {
+                          snaps[el.id] = snap;
+                          used.add(snap.id + '_' + snap.x + '_' + snap.y);
+                      }
+                  }
+              });
+              return snaps;
+          }, [data, getNearestCableEnd, manualEdits]);
+
+          const adjMap = useMemo(() => {
+            if (!data) return {};
+            const adj = {};
+            const initAdj = (id) => { if (!adj[id]) adj[id] = new Set(); };
+            
+            data.elements.forEach(el => initAdj(String(el.id)));
+
+            data.elements.forEach(el => {
+                if (el.class === 1113 && el.master != null) {
+                    const eid = String(el.id);
+                    const mid = String(el.master);
+                    initAdj(eid); initAdj(mid);
+                    adj[eid].add(mid);
+                    adj[mid].add(eid);
+                }
+            });
+
+            const connectionPoints = [];
+
+            data.elements.forEach(el => {
+                const eid = String(el.id);
+                if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+                    const c = el._stdCoords;
+                    if (c.length >= 4) {
+                        connectionPoints.push({ id: eid, x: c[0], y: c[1] }); 
+                        const last = c.length - 2;
+                        connectionPoints.push({ id: eid, x: c[last], y: c[last+1] }); 
+                    }
+                } else if (isNodeValid(el)) {
+                    let px = el.x, py = el.y;
+                    if (pillarSnaps[eid]) {
+                        px = pillarSnaps[eid].x;
+                        py = pillarSnaps[eid].y;
+                    }
+                    connectionPoints.push({ id: eid, x: px, y: py });
+                }
+            });
+
+            const TOLERANCE_SQ = 1.0; 
+            const CELL = 10;
+            const grid = {};
+            
+            connectionPoints.forEach(p => {
+                const gx = Math.round(p.x / CELL);
+                const gy = Math.round(p.y / CELL);
+                const key = `${gx},${gy}`;
+                if (!grid[key]) grid[key] = [];
+                grid[key].push(p);
+            });
+
+            connectionPoints.forEach(p1 => {
+                const gx = Math.round(p1.x / CELL);
+                const gy = Math.round(p1.y / CELL);
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        const key = `${gx+dx},${gy+dy}`;
+                        if (grid[key]) {
+                            grid[key].forEach(p2 => {
+                                if (p1.id !== p2.id) { 
+                                    const distSq = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
+                                    if (distSq <= TOLERANCE_SQ) {
+                                        adj[p1.id].add(p2.id);
+                                        adj[p2.id].add(p1.id);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
+            return adj;
+          }, [data, pillarSnaps]);
+
+          const getStreetAngleAt = useCallback((x, y) => {
+            if (!data) return 0;
+            let streetAngle = 0;
+            let minStreetDist = Infinity;
+            data.elements.forEach(o => {
+              if (o._stdCoords && [-3, -2, 1].includes(o.class)) {
+                for (let i = 0; i < o._stdCoords.length - 3; i += 2) {
+                  const x0 = o._stdCoords[i], y0 = o._stdCoords[i+1], x1 = o._stdCoords[i+2], y1 = o._stdCoords[i+3];
+                  const dx = x1 - x0, dy = y1 - y0;
+                  const lenSq = dx*dx + dy*dy;
+                  if (lenSq < 1e-6) continue;
+                  const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / lenSq));
+                  const d = Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
+                  if (d < minStreetDist) {
+                    minStreetDist = d;
+                    streetAngle = Math.atan2(exportFlipY ? dy : -dy, exportFlipX ? -dx : dx) * 180 / Math.PI;
+                  }
+                }
+              }
+            });
+            return streetAngle;
+          }, [data, exportFlipY, exportFlipX]);
+
+          const pairedFeatureId = useMemo(() => {
+              if (!data || !selectedFeature) return null;
+              const fid = String(selectedFeature.id);
+
+              if ([111, 190, 1373].includes(selectedFeature.class) && manualSupplyLinks[fid]) {
+                  return manualSupplyLinks[fid];
+              }
+              if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+                  const sId = Object.keys(manualSupplyLinks).find(k => String(manualSupplyLinks[k]) === fid);
+                  if (sId) return sId;
+              }
+
+              if (![1122, 1123, 1369, 111, 190].includes(selectedFeature.class)) return null;
+
+              let seedPillar = null;
+              if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+                  seedPillar = selectedFeature;
+              } else {
+                  let minDist = Infinity;
+                  data.elements.forEach(e => {
+                      if ([1122, 1123, 1369].includes(e.class)) {
+                          const d = Math.hypot(e.x - selectedFeature.x, e.y - selectedFeature.y);
+                          if (d < 30 && d < minDist) { minDist = d; seedPillar = e; }
+                      }
+                  });
+              }
+
+              if (seedPillar) {
+                  const clusterP = new Set([seedPillar.id]);
+                  let added = true;
+                  while (added) {
+                      added = false;
+                      data.elements.forEach(e => {
+                          if ([1122, 1123, 1369].includes(e.class) && !clusterP.has(e.id)) {
+                              const isNear = Array.from(clusterP).some(pid => {
+                                  const p = data.elements.find(x => x.id === pid);
+                                  return p && Math.hypot(e.x - p.x, e.y - p.y) < 4.0;
+                              });
+                              if (isNear) { clusterP.add(e.id); added = true; }
+                          }
+                      });
+                  }
+                  
+                  const allClusterPillars = Array.from(clusterP).map(id => data.elements.find(e => e.id === id));
+                  
+                  const clusterPillars = allClusterPillars.filter(p => {
+                      if (p.cc === undefined || p.cc === null) return false;
+                      const ccStr = String(p.cc).trim().toLowerCase();
+                      return ccStr !== '' && ccStr !== '0' && ccStr !== 'no';
+                  });
+                  const N = clusterPillars.length;
+
+                  if (N > 0) {
+                      let allSupplies = data.elements.filter(e => e.class === 111 || e.class === 190);
+                      
+                      allSupplies = allSupplies.filter(s => {
+                          const linkedPillarId = manualSupplyLinks[String(s.id)];
+                          if (!linkedPillarId) return true; 
+                          return clusterP.has(Number(linkedPillarId)) || clusterP.has(String(linkedPillarId)); 
+                      });
+
+                      allSupplies.sort((a, b) => {
+                          const distA = Math.min(...clusterPillars.map(p => Math.hypot(a.x - p.x, a.y - p.y)));
+                          const distB = Math.min(...clusterPillars.map(p => Math.hypot(b.x - p.x, b.y - p.y)));
+                          return distA - distB;
+                      });
+                      
+                      const clusterSupplies = allSupplies.slice(0, N);
+
+                      if (clusterPillars.length > 0 && clusterSupplies.length > 0) {
+                          let dx = Math.max(...clusterPillars.map(p => p.x)) - Math.min(...clusterPillars.map(p => p.x));
+                          let dy = Math.max(...clusterPillars.map(p => p.y)) - Math.min(...clusterPillars.map(p => p.y));
+                          
+                          if (dx < 0.1 && dy < 0.1 && clusterSupplies.length > 1) {
+                              dx = Math.max(...clusterSupplies.map(s => s.x)) - Math.min(...clusterSupplies.map(s => s.x));
+                              dy = Math.max(...clusterSupplies.map(s => s.y)) - Math.min(...clusterSupplies.map(s => s.y));
+                          }
+
+                          const useX = dx > dy;
+
+                          const sortFn = (a, b) => {
+                              if (useX) {
+                                  if (Math.abs(a.x - b.x) > 0.1) return a.x - b.x;
+                                  if (Math.abs(a.y - b.y) > 0.1) return a.y - b.y;
+                                  return a.id - b.id;
+                              } else {
+                                  if (Math.abs(a.y - b.y) > 0.1) return a.y - b.y;
+                                  if (Math.abs(a.x - b.x) > 0.1) return a.x - b.x;
+                                  return a.id - b.id;
+                              }
+                          };
+
+                          clusterPillars.sort(sortFn);
+                          clusterSupplies.sort(sortFn);
+
+                          if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+                              const myIndex = clusterPillars.findIndex(p => String(p.id) === fid);
+                              if (myIndex !== -1 && clusterSupplies[myIndex]) {
+                                  if (Math.hypot(clusterSupplies[myIndex].x - selectedFeature.x, clusterSupplies[myIndex].y - selectedFeature.y) < 35) {
+                                      return String(clusterSupplies[myIndex].id);
+                                  }
+                              }
+                          } else {
+                              const myIndex = clusterSupplies.findIndex(s => String(s.id) === fid);
+                              if (myIndex !== -1 && clusterPillars[myIndex]) {
+                                  return String(clusterPillars[myIndex].id);
+                              }
+                          }
+                      }
+                  }
+              }
+              return null;
+          }, [data, selectedFeature, manualSupplyLinks, exportFlipX, exportFlipY]);
+
+          const handleTrace = useCallback((mode) => {
+              if (!data || !selectedFeature) return;
+              const startId = String(selectedFeature.id);
+              const newConnected = new Set();
+              newConnected.add(startId);
+
+              let traceStartNodeId = startId;
+
+              if (pairedFeatureId) {
+                  newConnected.add(pairedFeatureId);
+                  if (![1122, 1123, 1369].includes(selectedFeature.class)) {
+                      traceStartNodeId = pairedFeatureId; 
+                  }
+              }
+
+              if (mode === 'continuity') {
+                  const startChain0 = selectedFeature.chain && selectedFeature.chain.length > 0 ? selectedFeature.chain[0] : null;
+                  const startClass = selectedFeature.class;
+                  
+                  const queue = [traceStartNodeId];
+                  while (queue.length > 0) {
+                      const curr = queue.shift();
+                      if (adjMap[curr]) {
+                          adjMap[curr].forEach(neighborId => {
+                              if (!newConnected.has(neighborId)) {
+                                  const neighborEl = data.elements.find(e => String(e.id) === neighborId);
+                                  if (neighborEl) {
+                                      let isContiguous = false;
+                                      if (startChain0 && neighborEl.chain && neighborEl.chain[0] === startChain0) {
+                                          isContiguous = true;
+                                      } else if (!startChain0 && neighborEl.class === startClass) {
+                                          isContiguous = true; 
+                                      }
+
+                                      if (isContiguous) {
+                                          newConnected.add(neighborId);
+                                          queue.push(neighborId);
+                                      }
+                                  }
+                              }
+                          });
+                      }
+                  }
+              } else if (mode === 'downstream') {
+                  const elMap = new Map(data.elements.map(e => [String(e.id), e]));
+                  let targetPath = null;
+                  const queue = [[traceStartNodeId]];
+                  const visited = new Set([traceStartNodeId]);
+
+                  while (queue.length > 0) {
+                      const path = queue.shift();
+                      const currId = path[path.length - 1];
+                      const el = elMap.get(currId);
+
+                      if (el && (el.class === 1113 || CT_CLASSES.includes(el.class))) {
+                          targetPath = path;
+                          break; 
+                      }
+
+                      if (adjMap[currId]) {
+                          for (const neighborId of adjMap[currId]) {
+                              if (!visited.has(neighborId)) {
+                                  visited.add(neighborId);
+                                  queue.push([...path, neighborId]);
+                              }
+                          }
+                      }
+                  }
+
+                  if (targetPath) {
+                      targetPath.forEach(id => newConnected.add(id));
+                      const lastId = targetPath[targetPath.length - 1];
+                      const lastEl = elMap.get(lastId);
+                      if (lastEl && lastEl.class === 1113 && lastEl.master) {
+                          newConnected.add(String(lastEl.master));
+                      }
+                  } else {
+                      console.warn("No se encontró una ruta física continua hacia un CT.");
+                  }
+              } else if (mode === 'upstream') {
+                  const addChains = (id) => {
+                      const el = data.elements.find(e => String(e.id) === String(id));
+                      if (el && el.chain && Array.isArray(el.chain)) {
+                          el.chain.forEach(cid => newConnected.add(String(cid)));
+                      }
+                  };
+                  addChains(startId);
+                  if (pairedFeatureId) addChains(pairedFeatureId);
+              }
+
+              setConnectedIds(newConnected);
+              setHighlightConnected(true);
+              setOnlyShowConnected(false);
+          }, [data, adjMap, selectedFeature, pairedFeatureId]);
+
+          const getCableOrientationAt = useCallback((x, y) => {
+            if (!data) return null;
+            let bestDist = Infinity;
+            let bestVec = null;
+            data.elements.forEach(o => {
+              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
+              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
+                const coords = o._stdCoords;
+                for (let i = 0; i < coords.length - 3; i += 2) {
+                  const x0 = coords[i], y0 = coords[i+1], x1 = coords[i+2], y1 = coords[i+3];
+                  const dx = x1 - x0, dy = y1 - y0;
+                  const lenSq = dx * dx + dy * dy;
+                  if (lenSq < 1e-6) continue;
+                  const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / lenSq));
+                  const px = x0 + t * dx, py = y0 + t * dy;
+                  const dist = Math.hypot(x - px, y - py);
+                  if (dist < bestDist) { bestDist = dist; bestVec = { dx, dy }; }
+                }
+              }
+            });
+            if (bestVec) {
+              let dx = exportFlipX ? -bestVec.dx : bestVec.dx;
+              let dy = exportFlipY ? bestVec.dy : -bestVec.dy;
+              const len = Math.hypot(dx, dy);
+              if (len < 1e-6) return null;
+              const vx = dx / len, vy = dy / len;
+              return { vector: { dx: vx, dy: vy }, angle: Math.atan2(vy, vx) * 180 / Math.PI };
+            }
+            return null;
+          }, [data, exportFlipX, exportFlipY, showMT]);
+
+          const getNearestNetworkPoint = useCallback((x, y) => {
+            if (!data) return null;
+            let nearest = null;
+            let bestDist = Infinity;
+            const maxSnapDist = 80.0; 
+            data.elements.forEach(o => {
+              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
+              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
+                const coords = o._stdCoords;
+                for (let i = 0; i < coords.length - 3; i += 2) {
+                  const x0 = coords[i], y0 = coords[i+1], x1 = coords[i+2], y1 = coords[i+3];
+                  const dx = x1 - x0, dy = y1 - y0;
+                  const lenSq = dx * dx + dy * dy;
+                  if (lenSq < 1e-6) continue;
+                  const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / lenSq));
+                  const px = x0 + t * dx, py = y0 + t * dy;
+                  const dist = Math.hypot(x - px, y - py);
+                  if (dist < bestDist) { bestDist = dist; nearest = { x: px, y: py }; }
+                }
+              }
+            });
+            return (bestDist <= maxSnapDist) ? nearest : null;
+          }, [data, showMT]);
+
+          const computeCtOrientation = useCallback((el) => {
+            if (!data) return { pos: { x: el.x, y: el.y }, rotation: 0 };
+            const bornes = data.elements.filter(b => b.class === 1113 && String(b.master) === String(el.id));
+            let basePos = { x: el.x, y: el.y };
+            if (bornes.length > 0) {
+              let sx = 0, sy = 0; bornes.forEach(b => { sx += b.x; sy += b.y; });
+              basePos = { x: sx / bornes.length, y: sy / bornes.length };
+            }
+            const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
+            let minBlockDist = Infinity;
+            let blockCenter = { x: el.x, y: el.y };
+            data.elements.forEach(o => {
+              if (o.class === 1 && o._stdCoords) {
+                let msx = 0, msy = 0, mcnt = 0;
+                for (let i = 0; i < o._stdCoords.length - 1; i += 2) { msx += o._stdCoords[i]; msy += o._stdCoords[i+1]; mcnt++; }
+                const mcx = msx / mcnt, mcy = msy / mcnt;
+                const d = Math.hypot(basePos.x - mcx, basePos.y - mcy);
+                if (d < minBlockDist) { minBlockDist = d; blockCenter = { x: mcx, y: mcy }; }
+              }
+            });
+            const relX = exportFlipX ? -(blockCenter.x - basePos.x) : (blockCenter.x - basePos.x);
+            const relY = exportFlipY ? (blockCenter.y - basePos.y) : -(blockCenter.y - basePos.y);
+            const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
+            const angleDiff = (a, b) => { let d = Math.abs((a + 360) % 360 - (b + 360) % 360); return d > 180 ? 360 - d : d; };
+            const norm1 = (streetAngle - 90 + 360) % 360;
+            const norm2 = (streetAngle + 90 + 360) % 360;
+            let finalAngle = (angleDiff(norm1, blockAng) < angleDiff(norm2, blockAng) ? norm1 : norm2);
+            return { pos: basePos, rotation: finalAngle + 90 };
+          }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
+
+          // --- 2. Estilos Visuales ---
+
+          const getElementStyle = useCallback((el, isSelected, isHovered) => {
+            const isConnected = connectedIds.size === 0 || connectedIds.has(String(el.id));
+            const isDimmed = connectedIds.size > 0 && highlightConnected && !isConnected;
+            const dimColor = (c) => (isDimmed && c !== '#cfd3d8') ? '#cbd5e1' : c;
+            let opacity = isDimmed ? 0.25 : 1.0;
+            const WAR_GREEN = '#4b5320'; 
+            const SOFT_GRAY_TRANS = 'rgba(226, 232, 240, 0.75)';
+            let stroke = WAR_GREEN;
+            if (POLE_CLASSES.includes(el.class)) stroke = '#000000';
+            let fill = null, worldSize = 1, minPixels = 1.0;
+            const isPotential = el.class === 1373;
+            if (CT_CLASSES.includes(el.class)) { fill = WAR_GREEN; worldSize = 7.1; minPixels = 3.2; } 
+            else {
+              if (el.type === 1) fill = stroke;
+              if (SUPPLY_CLASSES.includes(el.class)) { worldSize = 3.5; minPixels = 1.5; fill = isPotential ? 'rgba(241, 245, 249, 0.5)' : SOFT_GRAY_TRANS; if (isPotential) stroke = '#27272a'; }
+              else if (el.class === 1113) { worldSize = 1.8; minPixels = 1.0; }
+              else if (el.class === 52) { worldSize = 2.4; minPixels = 1.0; stroke = WAR_GREEN; } 
+              else if ([1122, 1123, 1369].includes(el.class)) { worldSize = 0.9; minPixels = 1.0; }
+              else if (el.class === 39) { worldSize = 1.8; minPixels = 1.3; } 
+              else if (POLE_CLASSES.includes(el.class)) { worldSize = 1.7; minPixels = 1.2; }
+            }
+            if (isSelected) { minPixels = Math.max(minPixels, 6); stroke = '#ef4444'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(239, 68, 68, 0.25)'; else if (fill && !isPotential) fill = '#ef4444'; opacity = 1.0; } 
+            else if (isHovered) { minPixels = Math.max(minPixels + 1, 4); stroke = '#3b82f6'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(59, 130, 246, 0.25)'; else if (fill && !isPotential) fill = '#3b82f6'; if (isDimmed) opacity = 0.8; }
+            return { stroke: (isSelected || isHovered) ? stroke : dimColor(stroke), fill: fill ? ((isSelected || isHovered) ? fill : dimColor(fill)) : null, worldSize, minPixels, isPolygon: el.closed === 1 || [1, 1219].includes(el.class), opacity, isConnected };
+          }, [connectedIds, highlightConnected]);
+
+          // --- 3. Handlers de Interacción ---
+
+          const getMouseWorldCoords = useCallback((clientX, clientY) => {
+            if (!canvasRef.current || !data) return { wx: 0, wy: 0, clientX };
+            const r = canvasRef.current.getBoundingClientRect();
+            const cx = (clientX - r.left - transform.x) / transform.scale;
+            const cy = (clientY - r.top - transform.y) / transform.scale;
+            const wx = exportFlipX ? -cx : cx;
+            const wy = exportFlipY ? cy : -cy;
+            return { wx, wy, clientX };
+          }, [data, transform, exportFlipX, exportFlipY]);
+
+          const findNodeAtCursor = useCallback((clientX, clientY) => {
+            if (!data || !canvasRef.current) return null;
+            const r = canvasRef.current.getBoundingClientRect();
+            const mouseCanvasX = clientX - r.left;
+            const mouseCanvasY = clientY - r.top;
+            const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
+            const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
+            let cl = null; let bestDistScreen = Infinity;
+            data.elements.forEach(el => {
+              if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return; 
+              if(isNodeValid(el) && !NETWORK_CLASSES.includes(el.class)){ 
+                const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
+                const ex = el.x + (el._autoDx || 0) + edit.dx;
+                const ey = el.y + (el._autoDy || 0) + edit.dy;
+                let sx = rx(ex), sy = ry(ey);
+                const sUnsel = getElementStyle(el, false, false);
+                const rStable = Math.max(sUnsel.minPixels, sUnsel.worldSize * transform.scale);
+                
+                if (el.class === 52) { 
+                    const snap = getNearestNetworkPoint(ex, ey); 
+                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
+                } else if ([1122, 1123, 1369].includes(el.class)) {
+                    const snap = pillarSnaps[el.id];
+                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); }
+                }
+                
+                const dScreen = Math.hypot(sx - mouseCanvasX, sy - mouseCanvasY);
+                const threshold = CT_CLASSES.includes(el.class) ? Math.max(8, rStable + 2) : Math.max(6, rStable + 2);
+                if (dScreen < threshold && dScreen < bestDistScreen) { bestDistScreen = dScreen; cl = el; }
+              } 
+              else if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+                let minLineDist = Infinity;
+                for (let i = 0; i < el._stdCoords.length - 3; i += 2) {
+                    const sx1 = rx(el._stdCoords[i]); const sy1 = ry(el._stdCoords[i+1]);
+                    const sx2 = rx(el._stdCoords[i+2]); const sy2 = ry(el._stdCoords[i+3]);
+                    const l2 = (sx1 - sx2) * (sx1 - sx2) + (sy1 - sy2) * (sy1 - sy2);
+                    let dist = 0;
+                    if (l2 === 0) { dist = Math.hypot(mouseCanvasX - sx1, mouseCanvasY - sy1); } else {
+                        let t = Math.max(0, Math.min(1, ((mouseCanvasX - sx1) * (sx2 - sx1) + (mouseCanvasY - sy1) * (sy2 - sy1)) / l2));
+                        dist = Math.hypot(mouseCanvasX - (sx1 + t * (sx2 - sx1)), mouseCanvasY - (sy1 + t * (sy2 - sy1)));
+                    }
+                    if (dist < minLineDist) minLineDist = dist;
+                }
+                if (minLineDist < 8 && (minLineDist + 1) < bestDistScreen) { bestDistScreen = minLineDist + 1; cl = el; }
+              }
+            });
+            return cl;
+          }, [data, transform, manualEdits, getElementStyle, exportFlipX, exportFlipY, showMT, pillarSnaps]);
+
+          const handleMouseDown = useCallback((e) => {
+            if (!data || !canvasRef.current) return;
+            const cl = findNodeAtCursor(e.clientX, e.clientY);
+            const coords = getMouseWorldCoords(e.clientX, e.clientY);
+            
+            if (linkingMode) {
+                if (cl) {
+                    if (linkingMode.type === 'pillar' && [111, 190, 1373].includes(cl.class)) {
+                        setManualSupplyLinks(prev => ({ ...prev, [String(cl.id)]: String(linkingMode.id) }));
+                        setLinkingMode(null);
+                        return; 
+                    } else if (linkingMode.type === 'supply' && [1122, 1123, 1369].includes(cl.class)) {
+                        setManualSupplyLinks(prev => ({ ...prev, [String(linkingMode.id)]: String(cl.id) }));
+                        setLinkingMode(null);
+                        return; 
+                    }
+                }
+                setLinkingMode(null); 
+                return;
+            }
+
+            if (cl) {
+              if (selectedFeature?.id === cl.id && !NETWORK_CLASSES.includes(cl.class)) {
+                setDraggingFeature(cl.id);
+                setFeatureDragInfo({ startX: coords.wx, startY: coords.wy, startClientX: e.clientX, initialEdit: manualEdits[cl.id] || { dx: 0, dy: 0, rot: 0 } });
+              } else {
+                setSelectedFeature(cl);
+                setIsDragging(true); setDragStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
+              }
+            } else {
+              setSelectedFeature(null);
+              setIsDragging(true); setDragStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
+            }
+          }, [data, getMouseWorldCoords, manualEdits, findNodeAtCursor, transform, selectedFeature, linkingMode]);
+
+          const handleMouseMove = useCallback((e) => {
+            if (draggingFeature && featureDragInfo) {
+              if (e.shiftKey) {
+                const deltaX = e.clientX - featureDragInfo.startClientX;
+                setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, rot: (featureDragInfo.initialEdit.rot + deltaX) % 360 } }));
+              } else {
+                const coords = getMouseWorldCoords(e.clientX, e.clientY);
+                const deltaX = coords.wx - featureDragInfo.startX;
+                const deltaY = coords.wy - featureDragInfo.startY;
+                setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, dx: featureDragInfo.initialEdit.dx + deltaX, dy: featureDragInfo.initialEdit.dy + deltaY } }));
+              }
+            } else if (isDragging) {
+              setTransform(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+            } else {
+              const cl = findNodeAtCursor(e.clientX, e.clientY);
+              setHoveredFeature(prev => (prev?.id === cl?.id ? prev : cl));
+            }
+          }, [draggingFeature, featureDragInfo, isDragging, dragStart, getMouseWorldCoords, findNodeAtCursor]);
+
+          const handleMouseUp = useCallback(() => { setIsDragging(false); setDraggingFeature(null); }, []);
+          const handleMouseLeave = useCallback(() => { setIsDragging(false); setDraggingFeature(null); setHoveredFeature(null); setIsDraggingFile(false); }, []);
+
+          const handleWheel = useCallback((e) => {
+            e.preventDefault();
+            const zf = Math.exp(-e.deltaY * 0.001);
+            const r = canvasRef.current?.getBoundingClientRect(); if (!r) return;
+            const mx = e.clientX - r.left, my = e.clientY - r.top;
+            setTransform(p => { 
+              const ns = Math.max(0.000001, Math.min(p.scale * zf, 1000000)); 
+              return { scale: ns, x: mx - (mx - p.x) * (ns / p.scale), y: my - (my - p.y) * (ns / p.scale) }; 
+            });
+          }, []);
+
+          const fitToScreenSafe = useCallback((dataset, curFlipX, curFlipY) => {
+            if (!dataset || !canvasRef.current) return;
+            let xs = [], ys = [];
+            
+            const focusClasses = [...SUPPLY_CLASSES, ...POLE_CLASSES, ...CT_CLASSES, 1113];
+            
+            dataset.elements.forEach(el => {
+                if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return;
+                if (focusClasses.includes(el.class) && isNodeValid(el)) { 
+                    xs.push(el.x); ys.push(el.y); 
+                }
+            });
+            
+            if (xs.length === 0) {
+                dataset.elements.forEach(el => {
+                    if ([-2, -3, 1, 1219].includes(el.class)) return; 
+                    if (isNodeValid(el)) { xs.push(el.x); ys.push(el.y); }
+                    if (el._stdCoords) {
+                        for(let i=0; i<el._stdCoords.length; i+=2) { xs.push(el._stdCoords[i]); ys.push(el._stdCoords[i+1]); }
+                    }
+                });
+            }
+
+            if (xs.length === 0) return;
+            xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
+
+            let minX = xs[0], maxX = xs[xs.length-1];
+            let minY = ys[0], maxY = ys[ys.length-1];
+            
+            if (xs.length > 20) {
+                const pLow = Math.floor(xs.length * 0.05); 
+                const pHigh = Math.floor(xs.length * 0.95); 
+                minX = xs[pLow]; maxX = xs[pHigh];
+                minY = ys[pLow]; maxY = ys[pHigh];
+            }
+
+            const padX = Math.max((maxX - minX) * 0.1, 15);
+            const padY = Math.max((maxY - minY) * 0.1, 15);
+            minX -= padX; maxX += padX;
+            minY -= padY; maxY += padY;
+
+            const w = canvasRef.current.clientWidth, h = canvasRef.current.clientHeight;
+            if (w === 0 || h === 0) return;
+            
+            const rx1 = getRenderX(minX, curFlipX), rx2 = getRenderX(maxX, curFlipX);
+            const ry1 = getRenderY(minY, curFlipY), ry2 = getRenderY(maxY, curFlipY);
+            
+            const dx = Math.abs(rx2 - rx1) || 50;
+            const dy = Math.abs(ry2 - ry1) || 50;
+            
+            let ns = Math.min(w / dx, h / dy) * 0.85; 
+            
+            setTransform({ scale: ns || 1, x: w/2 - ((rx1+rx2)/2)*ns, y: h/2 - ((ry1+ry2)/2)*ns });
+          }, [showMT]);
+
+          const handleDragOver = useCallback((e) => {
+            e.preventDefault();
+            if (viewMode === 'map') setIsDraggingFile(true);
+          }, [viewMode]);
+
+          const handleDragLeave = useCallback((e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+          }, []);
+
+          const processStreetData = useCallback((text) => {
+              setMessage(null);
+              if (!text || !text.trim()) return;
+              
+              const dict = { ...streetDictionary };
+              let count = 0;
+
+              try {
+                  const cleanText = text.replace(/^[\s\S]*?(STREETS\s*=\s*{)/, '{').replace(/};?[\s\S]*$/, '}');
+                  if (cleanText.startsWith('{') && cleanText.endsWith('}')) {
+                     const parsedObj = new Function('return (' + cleanText + ')')();
+                     for (const key in parsedObj) {
+                         if (parsedObj[key] && parsedObj[key].name) {
+                             dict[key] = parsedObj[key].name;
+                             count++;
+                         }
+                     }
+                  }
+              } catch(e) {
+                  // Fallback a regex
+              }
+              
+              if (count === 0) {
+                  const regex = /(?:["']?(\d+)["']?\s*:\s*\{[^}]*?["']?name["']?\s*:\s*["']([^"']+)["'])/gi;
+                  let match;
+                  while ((match = regex.exec(text)) !== null) {
+                      dict[match[1]] = match[2];
+                      count++;
+                  }
+              }
+              
+              if (count > 0) {
+                  setStreetDictionary(dict);
+                  setStreetRawData('');
+                  setMessage({ text: `¡Éxito! Se cargaron ${count} nombres al diccionario.`, type: 'success' });
+              } else {
+                  setMessage({ text: 'No se encontraron nombres en el formato esperado (Ej: 109175:{name:"CALLE"}).', type: 'error' });
+              }
+          }, [streetDictionary]);
+
+          const handleDrop = useCallback((e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            if (viewMode !== 'map') return;
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const text = ev.target.result;
+                    if (file.name.toLowerCase().includes('street') || file.name.toLowerCase().includes('area')) {
+                        processStreetData(text);
+                        setViewMode('input'); 
+                    } else {
+                        processData(true, text);
+                    }
+                };
+                reader.readAsText(file);
+            }
+          }, [viewMode, processStreetData]);
+
+          const processData = useCallback((isAppend = false, customText = null) => {
+            setMessage(null);
+            try {
+              let text = (customText !== null ? customText : rawData).trim(); 
+              if (!text) return;
+              
+              let foundStreets = 0;
+              const dict = { ...streetDictionary };
+              const streetRegex = /(?:["']?(\d+)["']?\s*:\s*\{[^}]*?["']?name["']?\s*:\s*["']([^"']+)["'])/gi;
+              let sMatch;
+              while ((sMatch = streetRegex.exec(text)) !== null) {
+                  dict[sMatch[1]] = sMatch[2];
+                  foundStreets++;
+              }
+              if (foundStreets > 0) {
+                  setStreetDictionary(dict);
+              }
+
+              const blocks = []; let depth = 0, start = -1;
+              for (let i = 0; i < text.length; i++) {
+                if (text[i] === '{') { if (depth === 0) start = i; depth++; } 
+                else if (text[i] === '}') { if (depth > 0) { depth--; if (depth === 0) blocks.push(text.substring(start, i + 1)); } }
+              }
+              const localScale = parseFloat((text.match(/scale\s*[:=]\s*([-\d.]+)/) || [0, data?.geo?.scale || 0])[1]);
+              const localX1 = parseFloat((text.match(/x1\s*[:=]\s*([-\d.]+)/) || (text.match(/xmin\s*[:=]\s*([-\d.]+)/)) || [0, data?.geo?.x1 || 0])[1]);
+              const localY2 = parseFloat((text.match(/y2\s*[:=]\s*([-\d.]+)/) || (text.match(/ymax\s*[:=]\s*([-\d.]+)/)) || [0, data?.geo?.y2 || 0])[1]);
+              
+              const absX = (v) => (!localScale) ? v : localX1 + (v / localScale);
+              const absY = (v) => (!localScale) ? v : localY2 - (v / localScale);
+              
+              let newElements = [];
+              blocks.forEach(block => {
+                let el = {}; try { el = new Function('return (' + block + ')')() || {}; } catch (e) { return; }
+                const ext = (r) => { let m = block.match(r); return m ? m[1].split(/[\s,]+/).map(n => parseFloat(n)).filter(isValidNum) : null; };
+                let coords = ext(/\bc\s*:\s*\[([\s\d.,-]+)\]/) || ext(/\bpoints\s*:\s*['"]([\s\d.,-]+)['"]/) || ext(/\bp\s*:\s*\[([\s\d.,-]+)\]/);
+                if (coords && coords.length >= 2) { if (coords.length === 2) { el.x = coords[0]; el.y = coords[1]; } else el._stdCoords = coords; }
+                if (el.x !== undefined) { el.x = absX(el.x); el.y = absY(el.y); }
+                if (el._stdCoords) { for (let i = 0; i < el._stdCoords.length - 1; i += 2) { el._stdCoords[i] = absX(el._stdCoords[i]); el._stdCoords[i+1] = absY(el._stdCoords[i+1]); } }
+                if (el.text) el.text.forEach(t => { if (isValidNum(t.x)) t.x = absX(t.x); if (isValidNum(t.y)) t.y = absY(t.y); });
+                
+                // Escalar las coordenadas "from" y "to" de las veredas
+                if (el.from && isValidNum(el.from.x)) { el.from.x = absX(el.from.x); el.from.y = absY(el.from.y); }
+                if (el.to && isValidNum(el.to.x)) { el.to.x = absX(el.to.x); el.to.y = absY(el.to.y); }
+
+                if (el.x !== undefined || el._stdCoords) newElements.push(el);
+              });
+
+              let combined = [];
+              
+              if (isAppend && data) {
+                  let offsetX = 0;
+                  let offsetY = 0;
+                  let isAligned = false;
+
+                  for (let newEl of newElements) {
+                      if (newEl.id != null) {
+                          const oldEl = data.elements.find(e => String(e.id) === String(newEl.id));
+                          if (oldEl && isValidNum(oldEl.x) && isValidNum(newEl.x)) {
+                              offsetX = oldEl.x - newEl.x;
+                              offsetY = oldEl.y - newEl.y;
+                              isAligned = true;
+                              break;
+                          }
+                      }
+                  }
+
+                  if (isAligned && (Math.abs(offsetX) > 0.001 || Math.abs(offsetY) > 0.001)) {
+                      newElements.forEach(el => {
+                          if (el.x !== undefined) { el.x += offsetX; el.y += offsetY; }
+                          if (el._stdCoords) {
+                              for (let i = 0; i < el._stdCoords.length; i += 2) {
+                                  el._stdCoords[i] += offsetX;
+                                  el._stdCoords[i+1] += offsetY;
+                              }
+                          }
+                          if (el.text) {
+                              el.text.forEach(t => { 
+                                  if (isValidNum(t.x)) t.x += offsetX; 
+                                  if (isValidNum(t.y)) t.y += offsetY; 
+                              });
+                          }
+                          
+                          // Arrastrar el offset de las veredas
+                          if (el.from && isValidNum(el.from.x)) { el.from.x += offsetX; el.from.y += offsetY; }
+                          if (el.to && isValidNum(el.to.x)) { el.to.x += offsetX; el.to.y += offsetY; }
+                      });
+                  }
+
+                  const uniqueMap = new Map();
+                  
+                  const getGeomHash = (e) => {
+                      if (e._stdCoords && e._stdCoords.length >= 4) {
+                          const mid = Math.floor(e._stdCoords.length / 4) * 2;
+                          return `g_${e.class}_${Math.round(e._stdCoords[0])}_${Math.round(e._stdCoords[1])}_${Math.round(e._stdCoords[mid])}_${Math.round(e._stdCoords[e._stdCoords.length-2])}`;
+                      }
+                      if (isValidNum(e.x)) {
+                          return `g_${e.class}_${Math.round(e.x)}_${Math.round(e.y)}`;
+                      }
+                      return null;
+                  };
+
+                  data.elements.forEach(el => {
+                      if (el.id != null && el.id !== "") {
+                          uniqueMap.set(String(el.id), el);
+                      } else {
+                          const h = getGeomHash(el);
+                          if (h) uniqueMap.set(h, el);
+                          else combined.push(el);
+                      }
+                  });
+
+                  newElements.forEach(el => {
+                      if (el.id != null && el.id !== "") {
+                          uniqueMap.set(String(el.id), el);
+                      } else {
+                          const h = getGeomHash(el);
+                          if (h) uniqueMap.set(h, el);
+                          else combined.push(el);
+                      }
+                  });
+                  
+                  combined = [...combined, ...Array.from(uniqueMap.values())];
+              } else {
+                  combined = newElements;
+              }
+              
+              const pillarMap = {};
+              combined.forEach(el => {
+                  if (isNodeValid(el) && [39, 1122, 1123, 1369].includes(el.class)) { 
+                      const key = `${Math.round(el.x)},${Math.round(el.y)}`;
+                      if (!pillarMap[key]) pillarMap[key] = [];
+                      pillarMap[key].push(el);
+                  }
+              });
+              Object.values(pillarMap).forEach(arr => { 
+                  if (arr.length > 1) arr.forEach((el, idx) => { el._overlapIdx = idx; }); 
+              });
+              
+              const processed = { 
+                  geo: { scale: localScale, x1: localX1, y2: localY2 }, 
+                  elements: combined, 
+                  bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 } 
+              };
+              
+              setData(processed); 
+              if (customText === null) setRawData(''); 
+              setViewMode('map'); 
+              setIsToolPanelOpen(false);
+              setIsImportModalOpen(false);
+              
+              if (!isAppend) {
+                  setTimeout(() => fitToScreenSafe(processed, exportFlipX, exportFlipY), 50);
+              }
+              
+              if (foundStreets > 0) {
+                  setMessage({ text: `¡Mapa cargado! Y detecté automáticamente ${foundStreets} nombres de calles.`, type: 'success' });
+              } else {
+                  setMessage({ text: 'Mapa cargado correctamente.', type: 'success' });
+              }
+            } catch (err) { setMessage({ text: 'Error procesando el mapa.', type: 'error' }); }
+          }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, streetDictionary]);
+
+          const isTraceable = selectedFeature ? (
+              NETWORK_CLASSES.includes(selectedFeature.class) || 
+              [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)
+          ) : false;
+
+          // --- 4. Motor de Renderizado ---
+
+          useEffect(() => {
+            if (!data || viewMode !== 'map' || !canvasRef.current) return;
+            const c = canvasRef.current, ctx = c.getContext('2d'), dpr = window.devicePixelRatio || 1, rect = c.getBoundingClientRect();
+            c.width = rect.width * dpr; c.height = rect.height * dpr; ctx.scale(dpr, dpr);
+            ctx.fillStyle = '#fdfdfd'; ctx.fillRect(0, 0, rect.width, rect.height);
+            const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
+            const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
+            const ctGroups = {};
+            data.elements.forEach(el => { if (el.class === 1113 && el.master != null) { const k = String(el.master); if (!ctGroups[k]) ctGroups[k] = []; ctGroups[k].push(el); } });
+
+            const terminalsToDraw = [];
+            const occupiedCenters = []; 
+            const nodeLayoutCache = {}; 
+
+            // 1. CAPA BASE Y CALLES: Fondo (Manzanas y Ejes viales)
+            data.elements.forEach(el => {
+              if (el._stdCoords) {
+                  if (el.class === 1 || el.class === 1219) {
+                      ctx.beginPath(); let m = true;
+                      for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
+                      ctx.closePath(); ctx.fillStyle = el.class === 1 ? '#f4f4ec' : '#f8f8f2'; ctx.fill(); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.8; ctx.stroke();
+                  } else if (!NETWORK_CLASSES.includes(el.class) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
+                      // Dibujar tenues ejes de calles u otras geometrías de fondo (-2, -3)
+                      ctx.beginPath(); let m = true;
+                      for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
+                      ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
+                  }
+              }
+            });
+
+            // 1.5 CAPA DE TEXTOS: Solo se procesa si la capa está encendida
+            if (showStreetNames) {
+                // Textos explícitos
+                data.elements.forEach(el => {
+                    if (el.text && Array.isArray(el.text)) {
+                        el.text.forEach(t => {
+                            const rawTextStr = t.str || t.text || t.val;
+                            if (!rawTextStr) return;
+                            
+                            let displayStr = String(rawTextStr);
+                            if (streetDictionary[displayStr]) displayStr = streetDictionary[displayStr];
+                            else if (streetDictionary[Math.round(Number(displayStr))]) displayStr = streetDictionary[Math.round(Number(displayStr))];
+                            
+                            const tx = rx(t.x);
+                            const ty = ry(t.y);
+                            
+                            if (tx < -100 || tx > rect.width + 100 || ty < -100 || ty > rect.height + 100) return;
+
+                            ctx.save();
+                            ctx.translate(tx, ty);
+                            
+                            if (t.ang !== undefined || t.rot !== undefined) {
+                                let angDeg = t.ang !== undefined ? t.ang : t.rot;
+                                let angleRad = angDeg * Math.PI / 180;
+                                if (exportFlipY) angleRad = -angleRad;
+                                if (exportFlipX) angleRad = Math.PI - angleRad;
+                                ctx.rotate(angleRad);
+                            }
+
+                            const baseSize = t.h || t.size || 2.0;
+                            const fontSize = Math.max(7.5, baseSize * transform.scale * 1.35); 
+                            
+                            if (fontSize >= 7.5) {
+                                ctx.font = `${fontSize}px "Segoe UI", Arial, sans-serif`;
+                                ctx.fillStyle = '#000000'; 
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'bottom';
+                                ctx.fillText(displayStr, 0, -1);
+                            }
+                            ctx.restore();
+                        });
+                    }
+                });
+
+                // Nombres de Calles y Alturas (SOLO clase -2 que son los bordes de la manzana)
+                data.elements.forEach(el => {
+                    if (el.class === -2 && el._stdCoords && el._stdCoords.length >= 4) {
+                        
+                        // Encontrar el segmento más largo para el nombre de la calle
+                        let maxLenSq = -1;
+                        let bestSx1 = 0, bestSy1 = 0, bestSx2 = 0, bestSy2 = 0;
+                        
+                        for(let i=0; i<el._stdCoords.length-3; i+=2) {
+                            const sx1 = rx(el._stdCoords[i]);
+                            const sy1 = ry(el._stdCoords[i+1]);
+                            const sx2 = rx(el._stdCoords[i+2]);
+                            const sy2 = ry(el._stdCoords[i+3]);
+                            
+                            const lenSq = (sx2 - sx1)**2 + (sy2 - sy1)**2;
+                            if (lenSq > maxLenSq) {
+                                maxLenSq = lenSq;
+                                bestSx1 = sx1; bestSy1 = sy1;
+                                bestSx2 = sx2; bestSy2 = sy2;
+                            }
+                        }
+
+                        const dx = bestSx2 - bestSx1;
+                        const dy = bestSy2 - bestSy1;
+                        const len = Math.sqrt(maxLenSq);
+
+                        if (len > 0) {
+                            let angRad = Math.atan2(dy, dx);
+                            let flipped = false;
+                            
+                            // Corrección de legibilidad
+                            if (angRad > Math.PI/2 || angRad < -Math.PI/2) {
+                                angRad += Math.PI;
+                                flipped = true;
+                            }
+
+                            // --- Dibujo de Nombre de Calle ---
+                            let displayStr = null;
+                            const streetId = el.street || el.calle || el.st;
+                            if (streetId && streetDictionary[String(streetId)]) {
+                                displayStr = streetDictionary[String(streetId)];
+                            } else if (el.name && isNaN(Number(el.name))) {
+                                displayStr = el.name;
+                            }
+
+                            if (displayStr && len > 30) {
+                                const mx = (bestSx1 + bestSx2) / 2;
+                                const my = (bestSy1 + bestSy2) / 2;
+
+                                if (mx > 0 && mx < rect.width && my > 0 && my < rect.height) {
+                                    const fontSize = Math.max(7.5, 1.5 * transform.scale); 
+                                    
+                                    if (fontSize >= 7.5 && fontSize < 150) {
+                                        ctx.save();
+                                        ctx.translate(mx, my);
+                                        ctx.rotate(angRad);
+                                        
+                                        ctx.font = `${fontSize}px "Segoe UI", Arial, sans-serif`;
+                                        ctx.textAlign = 'center';
+                                        
+                                        // Mantenemos el texto matemáticamente en el mismo lado de la línea
+                                        ctx.textBaseline = flipped ? 'top' : 'bottom';
+                                        const offset = flipped ? 2 : -2;
+                                        
+                                        ctx.fillStyle = '#000000';
+                                        ctx.fillText(displayStr, 0, offset);
+                                        
+                                        ctx.restore();
+                                    }
+                                }
+                            }
+
+                            // --- Dibujo de Alturas (from/to) con corrección de superposición ---
+                            const drawNum = (obj, isStart) => {
+                                if (obj && obj.num !== undefined && isValidNum(obj.x) && isValidNum(obj.y)) {
+                                    const nx = rx(obj.x);
+                                    const ny = ry(obj.y);
+                                    
+                                    if (nx > 0 && nx < rect.width && ny > 0 && ny < rect.height) {
+                                        const numSize = Math.max(4.5, 0.8 * transform.scale);
+                                        if (numSize >= 4.5 && numSize < 100) {
+                                            ctx.save();
+                                            
+                                            // Obtener dirección del segmento específico para alinear
+                                            let sDx, sDy;
+                                            if (isStart) {
+                                                sDx = rx(el._stdCoords[2]) - rx(el._stdCoords[0]);
+                                                sDy = ry(el._stdCoords[3]) - ry(el._stdCoords[1]);
+                                            } else {
+                                                const l = el._stdCoords.length;
+                                                sDx = rx(el._stdCoords[l-2]) - rx(el._stdCoords[l-4]);
+                                                sDy = ry(el._stdCoords[l-1]) - ry(el._stdCoords[l-3]);
+                                            }
+                                            
+                                            let sLen = Math.hypot(sDx, sDy);
+                                            if (sLen === 0) { sDx = dx; sDy = dy; sLen = len; }
+                                            
+                                            const sDirX = sDx / sLen;
+                                            const sDirY = sDy / sLen;
+                                            
+                                            // Retraer el número hacia adentro del segmento para evitar superposición
+                                            const pushDist = numSize * 1.5; 
+                                            const px = nx + (isStart ? sDirX * pushDist : -sDirX * pushDist);
+                                            const py = ny + (isStart ? sDirY * pushDist : -sDirY * pushDist);
+                                            
+                                            ctx.translate(px, py);
+                                            
+                                            let sAngRad = Math.atan2(sDy, sDx);
+                                            let sFlipped = false;
+                                            if (sAngRad > Math.PI/2 || sAngRad < -Math.PI/2) {
+                                                sAngRad += Math.PI;
+                                                sFlipped = true;
+                                            }
+                                            ctx.rotate(sAngRad);
+                                            
+                                            ctx.font = `${numSize}px "Segoe UI", Arial, sans-serif`;
+                                            ctx.fillStyle = '#9ca3af';
+                                            ctx.textAlign = 'center';
+                                            
+                                            ctx.textBaseline = sFlipped ? 'top' : 'bottom';
+                                            const nOffset = sFlipped ? 1 : -1;
+                                            
+                                            ctx.fillText(String(obj.num), 0, nOffset);
+                                            ctx.restore();
+                                        }
+                                    }
+                                }
+                            };
+                            
+                            drawNum(el.from, true);
+                            drawNum(el.to, false);
+                        }
+                    }
+                });
+            }
+
+            // 2. CAPA INFERIOR: Red BT/MT y Puentes
+            data.elements.forEach(el => {
+              if (!showMT && MT_LINE_CLASSES.includes(el.class)) return; 
+              if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+                const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
+                const isHov = hoveredFeature?.id === el.id;
+                const s = getElementStyle(el, isSel, isHov);
+                if (onlyShowConnected && !s.isConnected) return;
+                ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath(); let m = true;
+                for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
+                ctx.strokeStyle = s.stroke; 
+                if (el.class === 1097 || el.class === 'Puente') { ctx.lineWidth = isSel ? 6 : (isHov ? 5 : 4); ctx.setLineDash([]); } 
+                else {
+                    ctx.lineWidth = isSel ? 3.5 : (isHov ? 2.5 : (s.isConnected ? 2.2 : 1.4)); 
+                    if (el.class === 1089) ctx.setLineDash([5, 4]); else if (el.class === 1093) ctx.setLineDash([12, 3, 2, 3, 2, 3]); else ctx.setLineDash([]); 
+                }
+                ctx.stroke(); ctx.restore();
+              }
+            });
+
+            const renderNode = (el, isHighlightRender = false) => {
+                if (!showMT && MT_POLE_CLASSES.includes(el.class)) return; 
+                if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
+                
+                const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
+                const fx = el.x + (el._autoDx || 0) + edit.dx;
+                const fy = el.y + (el._autoDy || 0) + edit.dy;
+                const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
+                const isHov = hoveredFeature?.id === el.id;
+                const s = getElementStyle(el, isSel, isHov);
+                if (onlyShowConnected && !s.isConnected) return;
+                
+                let sx = rx(fx), sy = ry(fy);
+                const r = Math.max(s.minPixels, s.worldSize * transform.scale);
+                
+                let snappedEnd = null;
+                if (el.class === 52) { 
+                    const snap = getNearestNetworkPoint(fx, fy); 
+                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
+                } else if ([1122, 1123, 1369].includes(el.class)) {
+                    snappedEnd = pillarSnaps[el.id];
+                    if (snappedEnd) { sx = rx(snappedEnd.x); sy = ry(snappedEnd.y); }
+                }
+                
+                ctx.save(); ctx.globalAlpha = s.opacity; ctx.translate(sx, sy);
+                const streetAng = getStreetAngleAt(fx, fy) + edit.rot;
+                
+                if (SUPPLY_CLASSES.includes(el.class)) {
+                  const isPotential = el.class === 1373;
+                  ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI);
+                  if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); } 
+                  ctx.strokeStyle = s.stroke; ctx.lineWidth = isPotential ? 1.5 : 1.2; ctx.stroke();
+                  if (isPotential) { ctx.font = `300 ${Math.round(r * 1.3)}px "Segoe UI", Arial, sans-serif`; ctx.fillStyle = s.stroke; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('P', 0, r * 0.05); } 
+                  else if (transform.scale > 0.35) {
+                    ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, 0); ctx.lineTo(0, r); ctx.stroke();
+                    ctx.font = `bold ${Math.round(r * 0.45)}px sans-serif`; ctx.fillStyle = s.isConnected ? s.stroke : '#94a3b8'; ctx.textAlign = 'center';
+                    if (el.alt) ctx.fillText(String(el.alt), 0, -r * 0.45);
+                    ctx.font = `${Math.round(r * 0.38)}px sans-serif`; if (el.cc) ctx.fillText(String(el.cc), -r * 0.45, r * 0.55); if (el.pc) ctx.fillText(String(el.pc), r * 0.45, r * 0.55);
+                  }
+                } else {
+                  if ([1122, 1123, 1369].includes(el.class)) {
+                    const size = r * 1.2;
+                    let rectX, rectY, finalStreetAng;
+                    
+                    if (isHighlightRender && nodeLayoutCache[el.id]) {
+                        rectX = nodeLayoutCache[el.id].rectX;
+                        rectY = nodeLayoutCache[el.id].rectY;
+                        finalStreetAng = nodeLayoutCache[el.id].finalStreetAng;
+                    } else {
+                        rectX = -size / 2; rectY = -size / 2; 
+                        finalStreetAng = streetAng;
+                        
+                        if (snappedEnd && snappedEnd.prevX !== undefined) {
+                            const sxPrev = rx(snappedEnd.prevX); const syPrev = ry(snappedEnd.prevY);
+                            const sxEnd = rx(snappedEnd.x); const syEnd = ry(snappedEnd.y);
+                            
+                            finalStreetAng = getStreetAngleAt(snappedEnd.x, snappedEnd.y) + edit.rot;
+                            const angRad = (finalStreetAng * Math.PI) / 180;
+                            
+                            const vecX = sxPrev - sxEnd;
+                            const vecY = syPrev - syEnd;
+                            
+                            const dx_loc = vecX * Math.cos(angRad) + vecY * Math.sin(angRad); 
+                            const dy_loc = -vecX * Math.sin(angRad) + vecY * Math.cos(angRad);
+                            
+                            let qX = dx_loc >= 0 ? -size : 0;
+                            let qY = dy_loc >= 0 ? -size : 0;
+
+                            if (el._overlapIdx > 0) {
+                                if (el._overlapIdx === 1) qX = qX === 0 ? -size : 0; 
+                                else if (el._overlapIdx === 2) qY = qY === 0 ? -size : 0; 
+                                else if (el._overlapIdx === 3) { qX = qX === 0 ? -size : 0; qY = qY === 0 ? -size : 0; }
+                                rectX = qX;
+                                rectY = qY;
+                            } else {
+                                const quadrants = [
+                                    [qX, qY],
+                                    [qX === 0 ? -size : 0, qY],
+                                    [qX, qY === 0 ? -size : 0],
+                                    [qX === 0 ? -size : 0, qY === 0 ? -size : 0]
+                                ];
+
+                                let found = false;
+                                for (const [tx, ty] of quadrants) {
+                                    const lx = tx + size / 2;
+                                    const ly = ty + size / 2;
+                                    const cx_abs = sx + lx * Math.cos(angRad) - ly * Math.sin(angRad);
+                                    const cy_abs = sy + lx * Math.sin(angRad) + ly * Math.cos(angRad);
+                                    
+                                    let overlap = false;
+                                    for (const pt of occupiedCenters) {
+                                        if (Math.hypot(cx_abs - pt.x, cy_abs - pt.y) < size * 0.95) {
+                                            overlap = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (!overlap) {
+                                        rectX = tx;
+                                        rectY = ty;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    rectX = qX;
+                                    rectY = qY;
+                                }
+                            }
+                        }
+
+                        const angRad = (finalStreetAng * Math.PI) / 180;
+                        const lx = rectX + size / 2;
+                        const ly = rectY + size / 2;
+                        occupiedCenters.push({
+                            x: sx + lx * Math.cos(angRad) - ly * Math.sin(angRad), 
+                            y: sy + lx * Math.sin(angRad) + ly * Math.cos(angRad)
+                        });
+
+                        if (!isHighlightRender) {
+                            nodeLayoutCache[el.id] = { rectX, rectY, finalStreetAng };
+                        }
+                    }
+
+                    ctx.rotate((finalStreetAng * Math.PI) / 180); 
+                    
+                    let fillStyle = '#ffffff';
+                    if (el.class === 1123) fillStyle = '#4b5563'; 
+                    else if (el.color === 3) fillStyle = '#f59e0b'; 
+                    else if (el.color === 6) fillStyle = '#ef4444'; 
+                    else if (el.color === 2) fillStyle = '#3b82f6'; 
+                    else if (el.color === 4) fillStyle = '#22c55e'; 
+                    
+                    let strokeStyle = s.stroke;
+                    if (fillStyle !== '#ffffff' && fillStyle !== '#4b5563') {
+                        if (el.color === 3) strokeStyle = '#b45309';
+                        if (el.color === 6) strokeStyle = '#991b1b';
+                        if (el.color === 2) strokeStyle = '#1e3a8a';
+                        if (el.color === 4) strokeStyle = '#14532d';
+                    }
+                    if (isSel) strokeStyle = '#ef4444'; 
+                    else if (isHov) strokeStyle = '#3b82f6';
+
+                    ctx.fillStyle = fillStyle;
+                    ctx.strokeStyle = strokeStyle;
+                    ctx.lineWidth = 1.2;
+
+                    ctx.beginPath();
+                    if (el.class === 1369) {
+                        const gap = size * 0.3;
+                        const bcx = rectX + size / 2;
+                        const bcy = rectY + size / 2;
+                        
+                        ctx.rect(bcx - size - gap/2, rectY, size, size);
+                        ctx.rect(bcx + gap/2, rectY, size, size);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.arc(bcx, bcy, size * 0.15, 0, 2*Math.PI);
+                        ctx.fillStyle = strokeStyle; 
+                        ctx.fill();
+                    } else {
+                        ctx.rect(rectX, rectY, size, size); 
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+
+                    if (!isHighlightRender) {
+                        const termRadius = Math.max(1.2, r * 0.25);
+                        terminalsToDraw.push({ x: sx, y: sy, r: termRadius });
+                    }
+
+                  } else if (el.class === 39) {
+                    const origX = el.x, origY = el.y;
+                    const baseAngRad = (getStreetAngleAt(origX, origY) * Math.PI) / 180;
+                    let countTop = 0, countBottom = 0;
+                    
+                    data.elements.forEach(line => {
+                        if (!showMT && MT_LINE_CLASSES.includes(line.class)) return;
+                        if (line._stdCoords && NETWORK_CLASSES.includes(line.class)) {
+                            const c = line._stdCoords;
+                            for (let i = 0; i < c.length - 3; i += 2) {
+                                const x0 = c[i], y0 = c[i+1], x1 = c[i+2], y1 = c[i+3];
+                                const d0 = Math.hypot(x0 - origX, y0 - origY);
+                                const d1 = Math.hypot(x1 - origX, y1 - origY);
+                                
+                                if (d0 < 2.0 || d1 < 2.0) {
+                                    const sx0 = rx(x0), sy0 = ry(y0);
+                                    const sx1 = rx(x1), sy1 = ry(y1);
+                                    const sxBase = rx(origX), syBase = ry(origY);
+                                    
+                                    const vecX = d0 < 2.0 ? sx1 - sxBase : sx0 - sxBase;
+                                    const vecY = d0 < 2.0 ? sy1 - syBase : sy0 - syBase;
+                                    const dy_loc = -vecX * Math.sin(baseAngRad) + vecY * Math.cos(baseAngRad);
+
+                                    if (dy_loc < -0.1) countTop++;
+                                    else if (dy_loc > 0.1) countBottom++;
+                                }
+                            }
+                        }
+                    });
+
+                    const cableComesFromTop = countTop >= countBottom;
+                    const finalRotAng = getStreetAngleAt(origX, origY) + edit.rot;
+                    ctx.rotate((finalRotAng * Math.PI) / 180);
+                    
+                    const w = r * 2, h = r * 1.2; 
+                    
+                    const boxShift = w + (r * 0.6);
+                    const shiftX = el._overlapIdx > 0 ? el._overlapIdx * boxShift : 0;
+                    if (shiftX > 0) ctx.translate(shiftX, 0); 
+                    
+                    ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h);
+                    ctx.fillStyle = '#e2b48d'; ctx.fill();
+                    ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.8; ctx.stroke();
+                    
+                    const staticBorneRadius = Math.max(0.6, r * 0.12);
+                    ctx.fillStyle = '#166534';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = Math.max(0.3, staticBorneRadius * 0.25);
+
+                    const drawBorne = (bx, by) => {
+                        ctx.beginPath(); 
+                        ctx.arc(bx, by, staticBorneRadius, 0, 2*Math.PI);
+                        ctx.fill(); ctx.stroke();
+                    };
+
+                    const side7Y = cableComesFromTop ? -h/2 : h/2;
+                    const side1Y = cableComesFromTop ? h/2 : -h/2;
+
+                    const step = w / 8;
+                    for (let i = 1; i <= 7; i++) {
+                        drawBorne(-w/2 + i * step, side7Y);
+                    }
+                    
+                    drawBorne(0, side1Y);
+                    drawBorne(-w/2, 0);
+                    drawBorne(w/2, 0);
+
+                  } else if (el.class === 52) {
+                    let rotAngDeg = streetAng; const snap = getNearestNetworkPoint(fx, fy); const orient = getCableOrientationAt(snap?.x || fx, snap?.y || fy); if (orient) rotAngDeg = orient.angle + edit.rot;
+                    ctx.rotate((rotAngDeg * Math.PI) / 180); ctx.strokeStyle = s.stroke; ctx.lineCap = 'round';
+                    const barWidth = Math.max(1.4, r * 0.22), barHeight = r * 0.85, barOffset = r * 0.45;
+                    ctx.lineWidth = s.isConnected ? 2.2 : 1.4; ctx.beginPath(); ctx.moveTo(-r * 1.5, 0); ctx.lineTo(r * 1.5, 0); ctx.stroke();
+                    ctx.lineWidth = barWidth; ctx.beginPath(); ctx.moveTo(-barOffset, -barHeight); ctx.lineTo(-barOffset, barHeight); ctx.moveTo(barOffset, -barHeight); ctx.lineTo(barOffset, barHeight); ctx.stroke();
+                    ctx.lineWidth = Math.max(0.6, r * 0.10); ctx.beginPath(); ctx.arc(0, 0, r * 0.95, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+                    ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; const connRadius = r * 0.22; ctx.beginPath(); ctx.arc(-r, 0, connRadius, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.arc(r, 0, connRadius, 0, 2 * Math.PI); ctx.fill();
+                  } else {
+                    ctx.rotate((streetAng * Math.PI) / 180); ctx.lineWidth = 1.8; 
+                    const pr = r * 0.8;
+                    if (el.class === 64) { 
+                      ctx.lineWidth = Math.max(0.4, pr * 0.20); ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke(); 
+                      ctx.beginPath(); ctx.moveTo(-pr, 0); ctx.lineTo(pr, 0); ctx.moveTo(0, -pr); ctx.lineTo(0, pr); ctx.stroke(); 
+                      ctx.fillStyle = '#800000'; [-0.75, -0.375, 0, 0.375, 0.75].forEach(off => { ctx.beginPath(); ctx.arc(0, pr * off, pr * 0.14, 0, 2 * Math.PI); ctx.fill(); });
+                    } 
+                    else if (el.class === 65) { 
+                      ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.lineWidth = Math.max(1.5, pr * 0.15); ctx.strokeStyle = s.stroke; ctx.stroke(); 
+                      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, pr, Math.PI / 2, 3 * Math.PI / 2); ctx.clip();
+                      ctx.beginPath(); ctx.lineWidth = Math.max(0.3, pr * 0.04);
+                      const step = (pr * 2) / 20; for(let i = -pr; i <= pr; i += step) { ctx.moveTo(-pr, i); ctx.lineTo(0, i); }
+                      ctx.stroke(); ctx.restore();
+                      ctx.beginPath(); ctx.moveTo(0, -pr); ctx.lineTo(0, pr); ctx.lineWidth = pr * 0.15; ctx.stroke(); 
+                      ctx.fillStyle = '#800000'; [-0.75, -0.375, 0, 0.375, 0.75].forEach(off => { ctx.beginPath(); ctx.arc(0, pr * off, pr * 0.14, 0, 2 * Math.PI); ctx.fill(); });
+                    }
+                    else if (el.class === 74) {
+                      ctx.lineWidth = Math.max(1.5, pr * 0.15); ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke();
+                      ctx.lineWidth = Math.max(0.2, pr * 0.05); const lineOffset = pr * 0.45;
+                      [-lineOffset, 0, lineOffset].forEach(yPos => { ctx.beginPath(); ctx.moveTo(-pr, yPos); ctx.lineTo(pr, yPos); ctx.stroke(); });
+                      ctx.fillStyle = '#800000'; [-0.75, -0.375, 0, 0.375, 0.75].forEach(borneOff => { ctx.beginPath(); ctx.arc(0, pr * borneOff, pr * 0.14, 0, 2 * Math.PI); ctx.fill(); });
+                    }
+                    else if (el.class === 75) {
+                      ctx.lineWidth = Math.max(0.5, pr * 0.15); ctx.strokeStyle = s.stroke;
+                      const tipX = pr * 1.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tipX, 0); ctx.stroke();
+                      const headSize = pr * 0.5; ctx.beginPath(); ctx.moveTo(tipX, 0); ctx.lineTo(tipX - headSize, -headSize * 0.6); ctx.lineTo(tipX - headSize, headSize * 0.6); ctx.closePath();
+                      ctx.fillStyle = '#d1d5db'; ctx.fill(); ctx.stroke();
+                    }
+                    else if (el.class === 81) {
+                      ctx.lineWidth = Math.max(0.5, pr * 0.15); ctx.strokeStyle = s.stroke;
+                      const tipX = pr; const tailX = pr * 2.5; ctx.beginPath(); ctx.moveTo(tailX, 0); ctx.lineTo(tipX, 0); ctx.stroke();
+                      const headSize = pr * 0.5; ctx.beginPath(); ctx.moveTo(tipX, 0); ctx.lineTo(tipX + headSize, -headSize * 0.6); ctx.lineTo(tipX + headSize, headSize * 0.6); ctx.closePath();
+                      ctx.fillStyle = '#d1d5db'; ctx.fill(); ctx.stroke();
+                    }
+                    else if (el.class === 98 || el.class === 15) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke(); } 
+                    else if (el.class === 228) { 
+                      ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.fillStyle = s.stroke; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); ctx.fillStyle = '#800000'; [-0.75, -0.375, 0, 0.375, 0.75].forEach(off => { ctx.beginPath(); ctx.arc(0, pr * off, pr * 0.14, 0, 2 * Math.PI); ctx.fill(); });
+                    }
+                    else if (el.class === 56 || el.class === 422 || el.class === 408) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2 * Math.PI); ctx.fillStyle = s.stroke; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); } 
+                    else if (el.class === 1113) { ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, 2*Math.PI); ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.3; ctx.stroke(); } 
+                    else { ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI); ctx.fillStyle = s.fill || '#ffffff'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; ctx.stroke(); }
+                  }
+                }
+                ctx.restore();
+            };
+
+            data.elements.forEach(el => {
+                if (![39, 1122, 1123, 1369, 1113].includes(el.class)) renderNode(el);
+            });
+
+            Object.keys(ctGroups).forEach(mk => {
+              const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
+              if (ct) {
+                const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
+                const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
+                const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
+                if (onlyShowConnected && !s.isConnected) return;
+                const geo = computeCtOrientation(ct);
+                const r = Math.max(s.minPixels, s.worldSize * transform.scale);
+                const h = r * 1.6; ctx.save(); ctx.globalAlpha = s.opacity;
+                ctx.translate(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.rotate(((geo.rotation + edit.rot) * Math.PI) / 180);
+                const ay = -h;
+                if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); } 
+                else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
+                if (transform.scale > 0.08) { ctx.font = `bold ${Math.round(2.5 * transform.scale)}px sans-serif`; ctx.fillStyle = '#334155'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(ct.ni || ct.id), 0, ay * 0.18); }
+                ctx.restore();
+                (ctGroups[mk] || []).forEach(n => {
+                  const nEdit = manualEdits[n.id] || { dx: 0, dy: 0, rot: 0 };
+                  ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath();
+                  ctx.moveTo(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.lineTo(rx(n.x + nEdit.dx), ry(n.y + nEdit.dy));
+                  ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+                });
+              }
+            });
+
+            data.elements.forEach(el => {
+                if ([39, 1122, 1123, 1369, 1113].includes(el.class)) renderNode(el);
+            });
+
+            if (selectedFeature && isNodeValid(selectedFeature) && !CT_CLASSES.includes(selectedFeature.class)) {
+                renderNode(selectedFeature, true);
+            }
+            if (pairedFeatureId) {
+                const pairedEl = data.elements.find(e => String(e.id) === pairedFeatureId);
+                if (pairedEl && isNodeValid(pairedEl) && !CT_CLASSES.includes(pairedEl.class)) {
+                    renderNode(pairedEl, true);
+                }
+            }
+
+            terminalsToDraw.forEach(t => {
+                ctx.beginPath(); 
+                ctx.arc(t.x, t.y, t.r, 0, 2*Math.PI);
+                ctx.fillStyle = '#166534'; ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.3, t.r * 0.25); ctx.stroke();
+            });
+            
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames]);
+
+          useEffect(() => {
+            const c = canvasRef.current; if (!c || viewMode !== 'map') return;
+            c.addEventListener('wheel', handleWheel, { passive: false });
+            return () => c.removeEventListener('wheel', handleWheel);
+          }, [viewMode, handleWheel]);
+
+          return (
+            <div className="w-full h-screen bg-slate-900 flex flex-col overflow-hidden text-slate-200 font-sans">
+              <header className="h-10 bg-slate-800 border-b border-slate-700 flex items-center px-4 justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <IconLayers className="text-blue-400 w-4 h-4" />
+                  <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v8.1.4 (Largo Clase 39)</h1>
+                </div>
+                <div className="flex gap-2">
+                  {data && (
+                      <button 
+                          onClick={() => setIsImportModalOpen(true)} 
+                          className="px-3 py-1 bg-amber-600 text-white rounded text-[9px] font-bold hover:bg-amber-500 transition-colors shadow flex items-center gap-1"
+                      >
+                          <IconPlus className="w-3 h-3" /> Apilar
+                      </button>
+                  )}
+                  <button onClick={() => setShowStreetNames(!showStreetNames)} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-1 transition-colors ${showStreetNames ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{showStreetNames ? <IconEye className="w-3 h-3" /> : <IconEyeOff className="w-3 h-3" />} Calles</button>
+                  <button onClick={() => setShowMT(!showMT)} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-1 transition-colors ${showMT ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{showMT ? <IconEye className="w-3 h-3" /> : <IconEyeOff className="w-3 h-3" />} MT</button>
+                  <button onClick={() => setViewMode('input')} className="px-3 py-1 bg-slate-700 rounded text-[9px] font-bold hover:bg-slate-600 transition-colors">Datos</button>
+                  <button onClick={() => setViewMode('map')} disabled={!data} className="px-3 py-1 bg-blue-600 rounded text-[9px] font-bold hover:bg-blue-500 transition-colors">Mapa</button>
+                </div>
+              </header>
+              <main className="flex-1 relative overflow-hidden bg-white" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                {isDraggingFile && (
+                    <div className="absolute inset-0 z-[100] bg-blue-500/80 flex items-center justify-center border-4 border-blue-300 border-dashed backdrop-blur-sm pointer-events-none">
+                        <h2 className="text-white text-2xl font-bold flex items-center gap-4 drop-shadow-md">
+                            <IconFileText className="w-12 h-12" />
+                            Suelta el archivo para Apilar Capa
+                        </h2>
+                    </div>
+                )}
+                {isImportModalOpen && (
+                    <div className="absolute inset-0 z-[90] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden">
+                            <div className="bg-blue-800 text-white p-3 flex justify-between items-center">
+                                <h3 className="font-bold text-xs uppercase flex items-center gap-2"><IconPlus className="w-4 h-4"/> Apilar Nueva Capa</h3>
+                                <button onClick={() => setIsImportModalOpen(false)} className="hover:bg-red-500 p-1 rounded-full transition-colors"><IconX className="w-4 h-4" /></button>
+                            </div>
+                            <div className="p-4 flex flex-col gap-3">
+                                <p className="text-xs text-slate-600 font-bold">Pega el texto de la nueva capa aquí (también puedes arrastrar un archivo txt sobre el mapa).</p>
+                                <textarea 
+                                    className="w-full h-48 p-3 font-mono text-[10px] text-slate-800 bg-slate-50 border border-slate-300 rounded outline-none resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
+                                    value={importText} 
+                                    onChange={e => setImportText(e.target.value)} 
+                                    placeholder="Pega aquí los nuevos datos..." 
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                    <button onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded text-xs hover:bg-slate-300 transition-colors">Cancelar</button>
+                                    <button onClick={() => processData(true, importText)} disabled={!importText.trim()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors shadow">Apilar Datos</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {viewMode === 'map' ? (
+                  <>
+                    <canvas ref={canvasRef} 
+                      className={`w-full h-full block ${linkingMode ? 'cursor-crosshair' : (draggingFeature ? 'cursor-move' : (isDragging ? 'cursor-grabbing' : (hoveredFeature ? 'cursor-pointer' : 'default')))}`} 
+                      onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseLeave}
+                    />
+                    <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                      <button onClick={() => setTransform(p => ({ ...p, scale: p.scale * 1.5 }))} className="w-8 h-8 bg-white text-slate-900 rounded-full shadow-lg flex items-center justify-center border border-slate-300 hover:bg-slate-100 transition-transform active:scale-95 font-bold">+</button>
+                      <button onClick={() => setTransform(p => ({ ...p, scale: p.scale * 0.7 }))} className="w-8 h-8 bg-white text-slate-900 rounded-full shadow-lg flex items-center justify-center border border-slate-300 hover:bg-slate-100 transition-transform active:scale-95 font-bold">-</button>
+                      <button onClick={() => fitToScreenSafe(data, exportFlipX, exportFlipY)} className="w-8 h-8 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 active:scale-95"><IconMaximize className="w-4 h-4" /></button>
+                    </div>
+                    <div className={`absolute top-4 left-4 w-56 transition-all duration-300 z-20 ${isToolPanelOpen ? 'translate-x-0' : '-translate-x-[calc(100%-12px)]'}`}>
+                      <div className="bg-white rounded shadow-xl border border-slate-400 overflow-hidden text-slate-800 text-[10px]">
+                        <div className="bg-slate-800 text-white p-2 flex justify-between items-center cursor-pointer font-bold uppercase" onClick={() => setIsToolPanelOpen(!isToolPanelOpen)}><span>Configuración</span><span>{isToolPanelOpen ? '▲' : '▼'}</span></div>
+                        {isToolPanelOpen && (
+                          <div className="p-3 space-y-3">
+                            <div className="space-y-1">
+                               <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={exportFlipY} onChange={e => {setExportFlipY(e.target.checked); if(data) setTimeout(()=>fitToScreenSafe(data, exportFlipX, e.target.checked),0);}} /> Inv. N-S</label>
+                               <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={exportFlipX} onChange={e => {setExportFlipX(e.target.checked); if(data) setTimeout(()=>fitToScreenSafe(data, e.target.checked, exportFlipY),0);}} /> Inv. E-O</label>
+                            </div>
+                            {connectedIds.size > 0 && (
+                              <div className="pt-2 border-t border-slate-100 space-y-2">
+                                <p className="font-bold text-blue-800 uppercase text-[9px] flex items-center gap-1"><IconZap className="w-3 h-3"/> Conexión ({connectedIds.size})</p>
+                                <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={highlightConnected} onChange={e => setHighlightConnected(e.target.checked)} /> Resaltar</label>
+                                <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={onlyShowConnected} onChange={e => setOnlyShowConnected(e.target.checked)} /> Solo conectados</label>
+                                <button onClick={() => { setConnectedIds(new Set()); setOnlyShowConnected(false); setHighlightConnected(true); }} className="w-full py-1 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-bold">Limpiar</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {selectedFeature && (
+                      <div className="absolute right-6 top-6 w-80 max-h-[calc(100vh-3rem)] bg-white shadow-2xl rounded-lg overflow-hidden border border-slate-600 z-50 flex flex-col text-xs">
+                        <div className="bg-blue-800 text-white px-4 py-3 flex justify-between items-center shadow-md shrink-0 z-10">
+                          <span className="font-bold tracking-tight uppercase truncate">ID: {String(selectedFeature.id || 'N/A')}</span>
+                          <button onClick={() => { setSelectedFeature(null); setLinkingMode(null); }} className="hover:bg-red-500 p-1 rounded-full"><IconX className="w-4 h-4" /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto flex flex-col bg-white">
+                            <div className="text-slate-900 shrink-0">
+                              <table className="w-full border-collapse text-left">
+                                <tbody>
+                                  {Object.entries(selectedFeature).map(([k, v]) => {
+                                    if (['text', 'x', 'y', '_stdCoords', '_autoDx', '_autoDy', '_overlapIdx'].includes(k)) return null;
+                                    return (
+                                      <tr key={k} className="border-b border-slate-100 hover:bg-slate-50">
+                                        <td className="p-2.5 bg-slate-50 font-bold text-slate-600 w-1/3 text-[10px] capitalize">{k.replace(/_/g, ' ')}</td>
+                                        <td className="p-2.5 font-mono text-[10px] text-slate-900 break-all">{String(v)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                            
+                            {([1122, 1123, 1369, 111, 190, 1373].includes(selectedFeature.class)) && (
+                                <div className="bg-white p-3 border-t border-slate-300 shrink-0">
+                                    <p className="text-[10px] font-bold text-slate-700 uppercase mb-2">Vínculo de Suministro</p>
+                                    {currentManualLink ? (
+                                        <div className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200">
+                                            <span className="text-[10px] font-mono font-bold text-slate-800">
+                                                Fijado a ID: {currentManualLink}
+                                            </span>
+                                            <button 
+                                                onClick={() => removeManualLink(String(selectedFeature.id))} 
+                                                className="text-red-500 hover:text-red-700 font-bold text-[9px] uppercase tracking-wider"
+                                            >
+                                                [ Desvincular ]
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button 
+                                            onClick={() => {
+                                                if (linkingMode && linkingMode.id === selectedFeature.id) {
+                                                    setLinkingMode(null);
+                                                } else {
+                                                    setLinkingMode({ 
+                                                        id: selectedFeature.id, 
+                                                        type: [111, 190, 1373].includes(selectedFeature.class) ? 'supply' : 'pillar' 
+                                                    });
+                                                }
+                                            }}
+                                            className={`w-full py-1.5 rounded text-[9px] font-bold uppercase transition-colors shadow-sm ${linkingMode && linkingMode.id === selectedFeature.id ? 'bg-amber-500 text-white animate-pulse' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                                        >
+                                            {linkingMode && linkingMode.id === selectedFeature.id ? 'Selecciona destino en el mapa...' : 'Vincular Manualmente'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {isTraceable && (
+                                <div className="bg-slate-100 p-3 border-t border-slate-300 shrink-0">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-[10px] font-bold text-slate-700 uppercase flex items-center gap-1">
+                                            <IconZap className="w-3 h-3 text-blue-600" /> Trazabilidad de Red
+                                        </p>
+                                        {connectedIds.size > 0 && (
+                                            <button 
+                                                onClick={() => { setConnectedIds(new Set()); setHighlightConnected(false); }} 
+                                                className="text-[9px] font-bold text-red-600 hover:text-red-800 transition-colors"
+                                            >
+                                                [ Limpiar ]
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-1.5">
+                                        <button 
+                                            onClick={() => handleTrace('continuity')} 
+                                            className="w-full bg-blue-600 text-white font-bold py-1.5 rounded text-[9px] hover:bg-blue-700 transition-colors shadow-sm"
+                                        >
+                                            Continuidad del Tramo
+                                        </button>
+                                        {!NETWORK_CLASSES.includes(selectedFeature.class) && (
+                                            <div className="flex gap-1.5 w-full">
+                                                <button 
+                                                    onClick={() => handleTrace('upstream')} 
+                                                    className="flex-1 bg-amber-600 text-white font-bold py-1.5 rounded text-[9px] hover:bg-amber-700 transition-colors shadow-sm"
+                                                >
+                                                    Aguas Arriba
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleTrace('downstream')} 
+                                                    className="flex-1 bg-slate-700 text-white font-bold py-1.5 rounded text-[9px] hover:bg-slate-800 transition-colors shadow-sm"
+                                                >
+                                                    Aguas Abajo (Al CT)
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {!NETWORK_CLASSES.includes(selectedFeature.class) && (
+                              <div className="bg-white p-3 border-t border-slate-300 shrink-0">
+                                <p className="text-[10px] font-bold text-slate-700 uppercase mb-2">Ajuste Manual</p>
+                                <div className="flex gap-2 mb-2">
+                                  <label className="flex-1 text-[9px] font-bold text-slate-600">Desfase X
+                                    <input type="number" step="0.5" value={manualEdits[selectedFeature.id]?.dx || 0} onChange={e => handleManualEdit(selectedFeature.id, 'dx', e.target.value)} className="w-full mt-1 p-1 border rounded text-slate-800 font-mono" />
+                                  </label>
+                                  <label className="flex-1 text-[9px] font-bold text-slate-600">Desfase Y
+                                    <input type="number" step="0.5" value={manualEdits[selectedFeature.id]?.dy || 0} onChange={e => handleManualEdit(selectedFeature.id, 'dy', e.target.value)} className="w-full mt-1 p-1 border rounded text-slate-800 font-mono" />
+                                  </label>
+                                </div>
+                                <label className="block text-[9px] font-bold text-slate-600 mb-2">Rotación ({Math.round(manualEdits[selectedFeature.id]?.rot || 0)}°)
+                                  <input type="range" min="-180" max="180" step="1" value={manualEdits[selectedFeature.id]?.rot || 0} onChange={e => handleManualEdit(selectedFeature.id, 'rot', e.target.value)} className="w-full mt-1 accent-blue-600" />
+                                </label>
+                              </div>
+                            )}
+                        </div>
+                        <div className="bg-slate-50 px-4 py-2 border-t border-slate-300 text-[9px] text-slate-500 font-bold text-center uppercase tracking-widest shrink-0">Información Técnica</div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-slate-100 p-6 flex flex-col text-slate-800 overflow-y-auto">
+                    <div className="max-w-3xl mx-auto w-full bg-white rounded shadow p-6 border border-slate-200">
+                      
+                      {message && (
+                          <div className={`mb-4 px-3 py-2 rounded text-xs font-bold ${message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-green-100 text-green-800 border border-green-200'}`}>
+                              {message.text}
+                          </div>
+                      )}
+
+                      <div className="mb-6">
+                          <h2 className="font-bold mb-2 flex items-center gap-2 text-sm text-blue-800 uppercase">
+                              <IconLayers className="w-4 h-4"/> 1. Datos del Mapa Espacial
+                          </h2>
+                          <p className="text-[10px] text-slate-500 mb-2">Pega aquí el código que extraes del panel de Red.</p>
+                          <textarea className="w-full h-48 p-4 font-mono text-[10px] bg-slate-50 border border-slate-300 rounded outline-none resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="Pega aquí los datos..." value={rawData} onChange={e => setRawData(e.target.value)} />
+                          <div className="mt-2 flex gap-2">
+                            <button onClick={() => processData(false)} className="bg-blue-600 text-white font-bold py-2 px-4 rounded text-xs hover:bg-blue-700 shadow">Cargar Mapa Nuevo</button>
+                          </div>
+                      </div>
+
+                      <div className="border-t border-slate-200 pt-6">
+                          <h2 className="font-bold mb-2 flex items-center gap-2 text-sm text-amber-700 uppercase">
+                              <IconFileText className="w-4 h-4"/> 2. Diccionario de Calles
+                          </h2>
+                          <p className="text-[10px] text-slate-500 mb-2">Si las calles te aparecen con números, pega aquí el código del archivo streets.js o areas.js para traducir sus nombres.</p>
+                          <textarea className="w-full h-24 p-3 font-mono text-[10px] bg-amber-50 border border-amber-200 rounded outline-none resize-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500" placeholder='Ejemplo: 109175: {name: "CORTEJARENA"}' value={streetRawData} onChange={e => setStreetRawData(e.target.value)} />
+                          <div className="mt-2 flex items-center gap-3">
+                            <button onClick={() => processStreetData(streetRawData)} className="bg-amber-600 text-white font-bold py-2 px-4 rounded text-xs hover:bg-amber-700 shadow transition-colors">Aprender Nombres</button>
+                            {Object.keys(streetDictionary).length > 0 && (
+                                <span className="py-1 px-3 text-xs font-bold text-green-700 bg-green-100 border border-green-200 rounded-full animate-pulse">
+                                    ✓ {Object.keys(streetDictionary).length} calles aprendidas
+                                </span>
+                            )}
+                          </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+              </main>
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
