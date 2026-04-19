@@ -86,6 +86,7 @@
           // Diccionario de Calles
           const [streetDictionary, setStreetDictionary] = useState({});
           const [streetRawData, setStreetRawData] = useState('');
+          const graphicExtentCache = useRef({});
 
           const handleManualEdit = useCallback((id, field, value) => {
             setManualEdits(prev => ({
