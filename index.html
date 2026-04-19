@@ -594,43 +594,9 @@
             return g;
           }, []);
 
-          const getGraphicExtent = useCallback((classId, graphic) => {
-            if (!graphic) return null;
-            if (graphicExtentCache.current[classId]) return graphicExtentCache.current[classId];
-            let maxAbs = 0;
-            const classDef = (typeof CLASSES !== 'undefined') ? CLASSES[classId] : null;
-            if (classDef?.ports && Array.isArray(classDef.ports) && classDef.ports.length > 0) {
-              classDef.ports.forEach(p => {
-                if (isValidNum(p.x)) maxAbs = Math.max(maxAbs, Math.abs(p.x));
-                if (isValidNum(p.y)) maxAbs = Math.max(maxAbs, Math.abs(p.y));
-              });
-            }
-            graphic.gs.forEach(shape => {
-              const attr = shape.attr || {};
-              if (shape.type === 1) {
-                [attr.x1, attr.y1, attr.x2, attr.y2].forEach(v => { if (isValidNum(v)) maxAbs = Math.max(maxAbs, Math.abs(v)); });
-              } else if (shape.type === 2) {
-                if (isValidNum(attr.cx) && isValidNum(attr.r)) maxAbs = Math.max(maxAbs, Math.abs(attr.cx) + Math.abs(attr.r));
-                if (isValidNum(attr.cy) && isValidNum(attr.r)) maxAbs = Math.max(maxAbs, Math.abs(attr.cy) + Math.abs(attr.r));
-              } else if (shape.type === 5 && typeof attr.d === 'string') {
-                const nums = attr.d.match(/-?\d*\.?\d+/g) || [];
-                nums.forEach(n => {
-                  const v = parseFloat(n);
-                  if (isValidNum(v)) maxAbs = Math.max(maxAbs, Math.abs(v));
-                });
-              }
-            });
-            const safe = Math.max(0.5, maxAbs);
-            graphicExtentCache.current[classId] = safe;
-            return safe;
-          }, []);
-
-          const drawGraphicSymbol = useCallback((ctx, classId, r, strokeFallback, fillFallback) => {
+          const drawGraphicSymbol = useCallback((ctx, classId, strokeFallback, fillFallback) => {
             const graphic = getGraphicDef(classId);
             if (!graphic) return false;
-            const extent = getGraphicExtent(classId, graphic);
-            if (!extent) return false;
-            const symbolScale = Math.max(0.001, r / (extent * 1.35));
             const normalizeShapeStyle = (attr = {}) => {
               let stroke = attr.stroke ?? strokeFallback ?? null;
               let fill = attr.fill ?? fillFallback ?? null;
@@ -642,10 +608,10 @@
               }
               let strokeWidth = isValidNum(attr['stroke-width']) ? attr['stroke-width'] : null;
               if (strokeWidth != null && strokeWidth > 0) {
-                const visualThickness = strokeWidth * symbolScale;
-                if (visualThickness < 1.0) strokeWidth = 1.0 / symbolScale;
+                const visualThickness = strokeWidth * transform.scale;
+                if (visualThickness < 1.0) strokeWidth = 1.0 / Math.max(transform.scale, 0.0001);
               } else if (stroke && stroke !== 'none') {
-                strokeWidth = 1.5 / symbolScale;
+                strokeWidth = 1.2 / Math.max(transform.scale, 0.0001);
               } else {
                 strokeWidth = 0;
               }
@@ -657,7 +623,8 @@
               };
             };
             ctx.save();
-            ctx.scale(symbolScale, -symbolScale);
+            // Interpreta la simbología en unidades de mundo (como el catálogo original)
+            ctx.scale(transform.scale, -transform.scale);
             graphic.gs.forEach(shape => {
               const attr = shape.attr || {};
               const style = normalizeShapeStyle(attr);
@@ -703,7 +670,7 @@
             });
             ctx.restore();
             return true;
-          }, [getGraphicDef, getGraphicExtent]);
+          }, [getGraphicDef, transform.scale]);
 
           const getElementStyle = useCallback((el, isSelected, isHovered) => {
             const isConnected = connectedIds.size === 0 || connectedIds.has(String(el.id));
@@ -1634,9 +1601,11 @@
                     ctx.lineWidth = Math.max(0.6, r * 0.10); ctx.beginPath(); ctx.arc(0, 0, r * 0.95, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
                     ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; const connRadius = r * 0.22; ctx.beginPath(); ctx.arc(-r, 0, connRadius, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.arc(r, 0, connRadius, 0, 2 * Math.PI); ctx.fill();
                   } else {
-                    ctx.rotate((streetAng * Math.PI) / 180); ctx.lineWidth = 1.8; 
+                    const explicitRot = isValidNum(el.a) ? el.a : (isValidNum(el.ang) ? el.ang : (isValidNum(el.rot) ? el.rot : null));
+                    const symbolRot = (explicitRot != null ? explicitRot : streetAng);
+                    ctx.rotate((symbolRot * Math.PI) / 180); ctx.lineWidth = 1.8;
                     const pr = r * 0.8;
-                    const usedGraphic = drawGraphicSymbol(ctx, el.class, r, s.stroke, s.fill);
+                    const usedGraphic = drawGraphicSymbol(ctx, el.class, s.stroke, s.fill);
                     if (usedGraphic) {
                       // Dibujado con definición original (graphics.js)
                     } else if (el.class === 64) {
