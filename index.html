@@ -631,45 +631,74 @@
             const extent = getGraphicExtent(classId, graphic);
             if (!extent) return false;
             const symbolScale = Math.max(0.001, r / (extent * 1.35));
+            const normalizeShapeStyle = (attr = {}) => {
+              let stroke = attr.stroke ?? strokeFallback ?? null;
+              let fill = attr.fill ?? fillFallback ?? null;
+              if (!stroke && !fill) {
+                stroke = '#1e293b';
+                fill = 'none';
+              } else if (stroke && !fill) {
+                fill = 'none';
+              }
+              let strokeWidth = isValidNum(attr['stroke-width']) ? attr['stroke-width'] : null;
+              if (strokeWidth != null && strokeWidth > 0) {
+                const visualThickness = strokeWidth * symbolScale;
+                if (visualThickness < 1.0) strokeWidth = 1.0 / symbolScale;
+              } else if (stroke && stroke !== 'none') {
+                strokeWidth = 1.5 / symbolScale;
+              } else {
+                strokeWidth = 0;
+              }
+              return {
+                stroke,
+                fill,
+                strokeWidth,
+                fillOpacity: isValidNum(attr['fill-opacity']) ? attr['fill-opacity'] : 1
+              };
+            };
             ctx.save();
             ctx.scale(symbolScale, -symbolScale);
             graphic.gs.forEach(shape => {
               const attr = shape.attr || {};
-              const strokeColor = attr.stroke || strokeFallback;
-              const fillColor = attr.fill || fillFallback || null;
-              const alpha = isValidNum(attr['fill-opacity']) ? attr['fill-opacity'] : 1;
+              const style = normalizeShapeStyle(attr);
               if (shape.type === 1 && [attr.x1, attr.y1, attr.x2, attr.y2].every(isValidNum)) {
                 ctx.beginPath();
                 ctx.moveTo(attr.x1, attr.y1);
                 ctx.lineTo(attr.x2, attr.y2);
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = Math.max(0.04, (isValidNum(attr['stroke-width']) ? attr['stroke-width'] : 0.12));
-                ctx.stroke();
+                if (style.stroke && style.stroke !== 'none' && style.strokeWidth > 0) {
+                  ctx.strokeStyle = style.stroke;
+                  ctx.lineWidth = style.strokeWidth;
+                  ctx.stroke();
+                }
               } else if (shape.type === 2 && [attr.cx, attr.cy, attr.r].every(isValidNum)) {
                 ctx.beginPath();
                 ctx.arc(attr.cx, attr.cy, Math.max(0.08, attr.r), 0, 2 * Math.PI);
-                if (fillColor) {
+                if (style.fill && style.fill !== 'none') {
                   ctx.save();
-                  ctx.globalAlpha = alpha;
-                  ctx.fillStyle = fillColor;
+                  ctx.globalAlpha = style.fillOpacity;
+                  ctx.fillStyle = style.fill;
                   ctx.fill();
                   ctx.restore();
                 }
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = Math.max(0.04, (isValidNum(attr['stroke-width']) ? attr['stroke-width'] : 0.12));
-                ctx.stroke();
+                if (style.stroke && style.stroke !== 'none' && style.strokeWidth > 0) {
+                  ctx.strokeStyle = style.stroke;
+                  ctx.lineWidth = style.strokeWidth;
+                  ctx.stroke();
+                }
               } else if (shape.type === 5 && typeof attr.d === 'string') {
                 const p = new Path2D(attr.d);
-                if (fillColor) {
+                if (style.fill && style.fill !== 'none') {
                   ctx.save();
-                  ctx.globalAlpha = alpha;
-                  ctx.fillStyle = fillColor;
+                  ctx.globalAlpha = style.fillOpacity;
+                  ctx.fillStyle = style.fill;
                   ctx.fill(p);
                   ctx.restore();
                 }
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = Math.max(0.04, isValidNum(attr['stroke-width']) ? attr['stroke-width'] : 0.12);
-                ctx.stroke(p);
+                if (style.stroke && style.stroke !== 'none' && style.strokeWidth > 0) {
+                  ctx.strokeStyle = style.stroke;
+                  ctx.lineWidth = style.strokeWidth;
+                  ctx.stroke(p);
+                }
               }
             });
             ctx.restore();
