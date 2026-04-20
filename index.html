@@ -57,6 +57,7 @@
           const normalized = normalizeClassId(classId);
           return MT_LINE_CLASSES.includes(normalized) || MT_POLE_CLASSES.includes(normalized) || MT_CT_CLASSES.includes(normalized);
         };
+        const isMtClass = (classId) => MT_LINE_CLASSES.includes(classId) || MT_POLE_CLASSES.includes(classId) || MT_CT_CLASSES.includes(classId);
 
         function App() {
           const canvasRef = useRef(null);
@@ -96,6 +97,7 @@
           // Diccionario de Calles
           const [streetDictionary, setStreetDictionary] = useState({});
           const [streetRawData, setStreetRawData] = useState('');
+          const graphicExtentCache = useRef({});
 
           const handleManualEdit = useCallback((id, field, value) => {
             setManualEdits(prev => ({
@@ -764,6 +766,7 @@
                     const snap = getNearestNetworkPoint(ex, ey); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
                 } else if (isClass(el.class, 56)) {
+                } else if (el.class === 56) {
                     const snap = getNearestNetworkPoint(ex, ey);
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); }
                 } else if ([1122, 1123, 1369].includes(el.class)) {
@@ -1389,6 +1392,7 @@
 
             const renderNode = (el, isHighlightRender = false) => {
                 if (!showMT && isMtClass(el.class)) return;
+                if (!showMT && MT_POLE_CLASSES.includes(el.class)) return;
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
@@ -1407,6 +1411,7 @@
                     const snap = getNearestNetworkPoint(fx, fy); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
                 } else if (isClass(el.class, 56)) {
+                } else if (el.class === 56) {
                     const snap = getNearestNetworkPoint(fx, fy);
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); }
                 } else if ([1122, 1123, 1369].includes(el.class)) {
@@ -1646,6 +1651,11 @@
                       const orient = getCableOrientationAt(snap?.x || fx, snap?.y || fy);
                       baseRot = orient ? orient.angle : streetAng;
                     } else if (isClass(el.class, 64)) {
+                    if (el.class === 56) {
+                      const snap = getNearestNetworkPoint(fx, fy);
+                      const orient = getCableOrientationAt(snap?.x || fx, snap?.y || fy);
+                      baseRot = orient ? orient.angle : streetAng;
+                    } else if (el.class === 64) {
                       baseRot = streetAng;
                     } else if (POLE_CLASSES.includes(el.class)) {
                       baseRot = 0;
@@ -1659,6 +1669,11 @@
                     if (usedGraphic) {
                       // Dibujado con definición original (graphics.js)
                     } else if (isClass(el.class, 64)) {
+                    const usedGraphic = drawGraphicSymbol(ctx, el.class, s.stroke, s.fill);
+                    if (usedGraphic) {
+                      // Dibujado con definición original (graphics.js)
+                    } else if (isClass(el.class, 64)) {
+                    } else if (el.class === 64) {
                       ctx.lineWidth = Math.max(0.4, pr * 0.20); ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke(); 
                       ctx.beginPath(); ctx.moveTo(-pr, 0); ctx.lineTo(pr, 0); ctx.moveTo(0, -pr); ctx.lineTo(0, pr); ctx.stroke(); 
                       ctx.fillStyle = '#800000'; [-0.75, -0.375, 0, 0.375, 0.75].forEach(off => { ctx.beginPath(); ctx.arc(0, pr * off, pr * 0.14, 0, 2 * Math.PI); ctx.fill(); });
@@ -1754,6 +1769,7 @@
             });
             
           }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, drawGraphicSymbol, shouldUseCatalogSymbol]);
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, drawGraphicSymbol]);
 
           useEffect(() => {
             const c = canvasRef.current; if (!c || viewMode !== 'map') return;
