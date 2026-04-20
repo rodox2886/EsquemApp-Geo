@@ -598,6 +598,16 @@
           const drawGraphicSymbol = useCallback((ctx, classId, strokeFallback, fillFallback) => {
             const graphic = getGraphicDef(classId);
             if (!graphic) return false;
+            let anchorDx = 0, anchorDy = 0;
+            if (Number(classId) === 56 && typeof CLASSES !== 'undefined') {
+              const ports = CLASSES[classId]?.ports || [];
+              if (ports.length >= 2) {
+                const avgX = ports.reduce((acc, p) => acc + (isValidNum(p.x) ? p.x : 0), 0) / ports.length;
+                const avgY = ports.reduce((acc, p) => acc + (isValidNum(p.y) ? p.y : 0), 0) / ports.length;
+                anchorDx = -avgX;
+                anchorDy = -avgY;
+              }
+            }
             const normalizeShapeStyle = (attr = {}) => {
               let stroke = attr.stroke ?? strokeFallback ?? null;
               let fill = attr.fill ?? fillFallback ?? null;
@@ -632,6 +642,7 @@
             ctx.save();
             // Interpreta la simbología en unidades de mundo (como el catálogo original)
             ctx.scale(transform.scale, -transform.scale);
+            if (anchorDx !== 0 || anchorDy !== 0) ctx.translate(anchorDx, anchorDy);
             graphic.gs.forEach(shape => {
               const attr = shape.attr || {};
               const style = normalizeShapeStyle(attr);
