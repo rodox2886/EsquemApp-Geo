@@ -48,6 +48,7 @@
         const MT_LINE_CLASSES = [1089, 1091];
         const MT_POLE_CLASSES = [52, 408, 422, 1119];
         const MT_CT_CLASSES = [1186];
+        const isMtClass = (classId) => MT_LINE_CLASSES.includes(classId) || MT_POLE_CLASSES.includes(classId) || MT_CT_CLASSES.includes(classId);
 
         function App() {
           const canvasRef = useRef(null);
@@ -737,7 +738,7 @@
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             let cl = null; let bestDistScreen = Infinity;
             data.elements.forEach(el => {
-              if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class) || MT_CT_CLASSES.includes(el.class))) return;
+              if (!showMT && isMtClass(el.class)) return;
               if(isNodeValid(el) && !NETWORK_CLASSES.includes(el.class)){ 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const ex = el.x + (el._autoDx || 0) + edit.dx;
@@ -855,7 +856,7 @@
             const focusClasses = [...SUPPLY_CLASSES, ...POLE_CLASSES, ...CT_CLASSES, 1113];
             
             dataset.elements.forEach(el => {
-                if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class) || MT_CT_CLASSES.includes(el.class))) return;
+                if (!showMT && isMtClass(el.class)) return;
                 if (focusClasses.includes(el.class) && isNodeValid(el)) { 
                     xs.push(el.x); ys.push(el.y); 
                 }
@@ -1374,6 +1375,7 @@
             });
 
             const renderNode = (el, isHighlightRender = false) => {
+                if (!showMT && isMtClass(el.class)) return;
                 if (!showMT && MT_POLE_CLASSES.includes(el.class)) return;
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
                 
