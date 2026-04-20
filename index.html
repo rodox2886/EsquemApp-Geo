@@ -600,6 +600,12 @@
             const normalizeShapeStyle = (attr = {}) => {
               let stroke = attr.stroke ?? strokeFallback ?? null;
               let fill = attr.fill ?? fillFallback ?? null;
+              const normalizedClassId = Number(classId);
+              if (normalizedClassId === 64 || normalizedClassId === 56) {
+                // Pedido funcional: símbolos transparentes con trazo negro.
+                stroke = '#000000';
+                fill = 'none';
+              }
               if (!stroke && !fill) {
                 stroke = '#1e293b';
                 fill = 'none';
