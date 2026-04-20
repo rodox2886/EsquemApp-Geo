@@ -700,6 +700,12 @@
             return true;
           }, [getGraphicDef, transform.scale]);
 
+          const shouldUseCatalogSymbol = useCallback((classId) => {
+            const cid = normalizeClassId(classId);
+            // Aplicación gradual: evita degradar la visualización general del mapa.
+            return [52, 56, 64, 408, 422].includes(cid);
+          }, []);
+
           const getElementStyle = useCallback((el, isSelected, isHovered) => {
             const isConnected = connectedIds.size === 0 || connectedIds.has(String(el.id));
             const isDimmed = connectedIds.size > 0 && highlightConnected && !isConnected;
@@ -1659,6 +1665,10 @@
                     const symbolRot = baseRot + (edit.rot || 0);
                     ctx.rotate((symbolRot * Math.PI) / 180); ctx.lineWidth = 1.8;
                     const pr = r * 0.8;
+                    const usedGraphic = shouldUseCatalogSymbol(el.class) ? drawGraphicSymbol(ctx, el.class, s.stroke, s.fill) : false;
+                    if (usedGraphic) {
+                      // Dibujado con definición original (graphics.js)
+                    } else if (isClass(el.class, 64)) {
                     const usedGraphic = drawGraphicSymbol(ctx, el.class, s.stroke, s.fill);
                     if (usedGraphic) {
                       // Dibujado con definición original (graphics.js)
@@ -1758,6 +1768,7 @@
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.3, t.r * 0.25); ctx.stroke();
             });
             
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, drawGraphicSymbol, shouldUseCatalogSymbol]);
           }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, drawGraphicSymbol]);
 
           useEffect(() => {
