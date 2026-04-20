@@ -87,6 +87,7 @@
           // Diccionario de Calles
           const [streetDictionary, setStreetDictionary] = useState({});
           const [streetRawData, setStreetRawData] = useState('');
+          const graphicExtentCache = useRef({});
 
           const handleManualEdit = useCallback((id, field, value) => {
             setManualEdits(prev => ({
@@ -840,7 +841,7 @@
             const focusClasses = [...SUPPLY_CLASSES, ...POLE_CLASSES, ...CT_CLASSES, 1113];
             
             dataset.elements.forEach(el => {
-                if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return;
+                if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class) || MT_CT_CLASSES.includes(el.class))) return;
                 if (focusClasses.includes(el.class) && isNodeValid(el)) { 
                     xs.push(el.x); ys.push(el.y); 
                 }
@@ -1677,6 +1678,7 @@
             Object.keys(ctGroups).forEach(mk => {
               const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
               if (ct) {
+                if (!showMT && MT_CT_CLASSES.includes(ct.class)) return;
                 const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
                 const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
                 const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
