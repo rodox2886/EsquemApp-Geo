@@ -88,6 +88,7 @@
           // Diccionario de Calles
           const [streetDictionary, setStreetDictionary] = useState({});
           const [streetRawData, setStreetRawData] = useState('');
+          const graphicExtentCache = useRef({});
 
           const handleManualEdit = useCallback((id, field, value) => {
             setManualEdits(prev => ({
@@ -1375,6 +1376,7 @@
 
             const renderNode = (el, isHighlightRender = false) => {
                 if (!showMT && isMtClass(el.class)) return;
+                if (!showMT && MT_POLE_CLASSES.includes(el.class)) return;
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
