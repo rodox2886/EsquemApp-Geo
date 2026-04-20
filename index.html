@@ -46,7 +46,7 @@
         const POLE_CLASSES = [15, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
         
         const MT_LINE_CLASSES = [1089, 1091];
-        const MT_POLE_CLASSES = [52, 56, 408, 422, 1119];
+        const MT_POLE_CLASSES = [52, 408, 422, 1119];
 
         function App() {
           const canvasRef = useRef(null);
@@ -1602,7 +1602,8 @@
                     ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; const connRadius = r * 0.22; ctx.beginPath(); ctx.arc(-r, 0, connRadius, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.arc(r, 0, connRadius, 0, 2 * Math.PI); ctx.fill();
                   } else {
                     const explicitRot = isValidNum(el.a) ? el.a : (isValidNum(el.ang) ? el.ang : (isValidNum(el.rot) ? el.rot : null));
-                    const symbolRot = (explicitRot != null ? explicitRot : streetAng);
+                    const defaultRot = POLE_CLASSES.includes(el.class) ? 0 : streetAng;
+                    const symbolRot = (explicitRot != null ? explicitRot : defaultRot);
                     ctx.rotate((symbolRot * Math.PI) / 180); ctx.lineWidth = 1.8;
                     const pr = r * 0.8;
                     const usedGraphic = drawGraphicSymbol(ctx, el.class, s.stroke, s.fill);
