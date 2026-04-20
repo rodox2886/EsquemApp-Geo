@@ -726,7 +726,7 @@
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             let cl = null; let bestDistScreen = Infinity;
             data.elements.forEach(el => {
-              if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class) || MT_CT_CLASSES.includes(el.class))) return;
+              if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return;
               if(isNodeValid(el) && !NETWORK_CLASSES.includes(el.class)){ 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const ex = el.x + (el._autoDx || 0) + edit.dx;
@@ -1360,7 +1360,7 @@
             });
 
             const renderNode = (el, isHighlightRender = false) => {
-                if (!showMT && (MT_POLE_CLASSES.includes(el.class) || MT_CT_CLASSES.includes(el.class))) return;
+                if (!showMT && MT_POLE_CLASSES.includes(el.class)) return;
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
@@ -1609,17 +1609,19 @@
                     ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; const connRadius = r * 0.22; ctx.beginPath(); ctx.arc(-r, 0, connRadius, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.arc(r, 0, connRadius, 0, 2 * Math.PI); ctx.fill();
                   } else {
                     const explicitRot = isValidNum(el.a) ? el.a : (isValidNum(el.ang) ? el.ang : (isValidNum(el.rot) ? el.rot : null));
-                    let defaultRot = streetAng;
+                    let baseRot = streetAng;
                     if (el.class === 56) {
                       const snap = getNearestNetworkPoint(fx, fy);
                       const orient = getCableOrientationAt(snap?.x || fx, snap?.y || fy);
-                      defaultRot = orient ? orient.angle : streetAng;
+                      baseRot = orient ? orient.angle : streetAng;
                     } else if (el.class === 64) {
-                      defaultRot = streetAng;
+                      baseRot = streetAng;
                     } else if (POLE_CLASSES.includes(el.class)) {
-                      defaultRot = 0;
+                      baseRot = 0;
+                    } else if (explicitRot != null) {
+                      baseRot = explicitRot;
                     }
-                    const symbolRot = (explicitRot != null ? explicitRot : defaultRot);
+                    const symbolRot = baseRot + (edit.rot || 0);
                     ctx.rotate((symbolRot * Math.PI) / 180); ctx.lineWidth = 1.8;
                     const pr = r * 0.8;
                     const usedGraphic = drawGraphicSymbol(ctx, el.class, s.stroke, s.fill);
