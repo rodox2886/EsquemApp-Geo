@@ -4,6 +4,10 @@ function messageChannelMap(channelName, port) {
 	var channel = port;
 	var chName = channelName;
     
+
+	// Oculta por defecto la clase 1232 (UNI Recierre)
+	if (typeof ex_class !== 'undefined') ex_class[1232] = true;
+	if (typeof inc_class !== 'undefined') inc_class[1232] = false;
 	var post = function (msgObj) { 
 		let jsonMsg =  JSON.stringify(msgObj);
 		channel.postMessage (jsonMsg);
