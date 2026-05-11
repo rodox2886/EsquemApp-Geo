@@ -37,6 +37,7 @@
         const getRenderX = (x, flipX) => flipX ? -x : x;
         const getRenderY = (y, flipY) => flipY ? y : -y;
 
+        // IMPORTANTE: Se elimina la clase 16 y 3 para que NO sean dibujadas como CT (Ocultando los cuadrados)
         const CT_CLASSES = [1186, 1170, 1232, 1183, 1179, 1461];
         const SUPPLY_CLASSES = [111, 190, 1373];
         const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 'Puente'];
@@ -50,7 +51,9 @@
             "-3": "Eje Vial / Sección de Calle",
             "-2": "Vereda",
             "1": "Manzana",
+            "3": "[OLD] Cen. de Tr. a Nivel",
             "15": "Poste de Madera / H°A°",
+            "16": "Centro de Transf. a Nivel",
             "39": "Caja de Distribución",
             "52": "Puente BT/MT",
             "56": "Caja APR / Fusible",
@@ -84,7 +87,7 @@
             "1232": "Centro de Transformación (CT)",
             "1369": "Pilar Doble",
             "1373": "Suministro Potencial",
-            "1461": "Transformador"
+            "1461": "CT Plataforma Monoposte"
         };
 
         const HARDCODED_GRAPHICS = {
@@ -557,14 +560,10 @@
           }, [data, showMT]);
 
           const computeCtOrientation = useCallback((el) => {
-            if (!data) return { pos: { x: el.x, y: el.y }, rotation: 0 };
-            const bornes = data.elements.filter(b => b.class === 1113 && String(b.master) === String(el.id));
-            let basePos = { x: el.x, y: el.y };
-            if (bornes.length > 0) {
-              let sx = 0, sy = 0; bornes.forEach(b => { sx += b.x; sy += b.y; });
-              basePos = { x: sx / bornes.length, y: sy / bornes.length };
-            }
-                        let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
+            if (!data) return { rotation: 0 };
+            const basePos = { x: el.x, y: el.y };
+            const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
+            let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
             data.elements.forEach(o => {
               if (o.class === 1 && o._stdCoords) {
                 let msx = 0, msy = 0, mcnt = 0;
@@ -573,19 +572,18 @@
                 if (d < minBlockDist) { minBlockDist = d; blockCenter = { x: mcx, y: mcy }; }
               }
             });
-            const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
             const relX = exportFlipX ? -(blockCenter.x - basePos.x) : (blockCenter.x - basePos.x);
             const relY = exportFlipY ? (blockCenter.y - basePos.y) : -(blockCenter.y - basePos.y);
             const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
-            const tipA = (streetAngle + 90 + 360) % 360;
-            const tipB = (streetAngle - 90 + 360) % 360;
-            const angleDiff = (a, b) => { let d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
-            const tipDir = angleDiff(tipA, blockAng) <= angleDiff(tipB, blockAng) ? tipA : tipB;
-            const rotation = (tipDir + 90) % 360; // base paralela a calle, punta hacia manzana
-            const vx = blockCenter.x - basePos.x;
-            const vy = blockCenter.y - basePos.y;
-            const ctPos = { x: basePos.x + vx * 0.35, y: basePos.y + vy * 0.35 }; // desplazar CT hacia el interior de manzana
-            return { pos: ctPos, rotation };
+            const angleDiff = (a, b) => { let d = Math.abs((a + 360) % 360 - (b + 360) % 360); return d > 180 ? 360 - d : d; };
+            
+            // Garantizamos matemáticamente que la punta del triángulo mire de frente a la manzana
+            const rot1 = streetAngle;
+            const rot2 = streetAngle + 180;
+            const tipAng1 = rot1 - 90;
+            const tipAng2 = rot2 - 90;
+            
+            return { rotation: (angleDiff(tipAng1, blockAng) < angleDiff(tipAng2, blockAng) ? rot1 : rot2) };
           }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
 
           // --- 2. Estilos Visuales ---
@@ -611,12 +609,17 @@
             let fill = null, worldSize = 1, minPixels = 1.0;
             const isPotential = el.class === 1373;
             
-            if (CT_CLASSES.includes(el.class)) { 
-                fill = '#b45309'; worldSize = 5.2; minPixels = 2.6; 
+            if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
+                fill = '#b45309'; 
+                // AUMENTO DEL 60% al tamaño base anterior de 2.47
+                worldSize = 4.0; 
+                minPixels = 3.5;  
             } else {
               if (el.type === 1) fill = stroke;
               if (SUPPLY_CLASSES.includes(el.class)) { 
-                  worldSize = 3.5; minPixels = 1.5; fill = isPotential ? 'rgba(241, 245, 249, 0.5)' : SOFT_GRAY_TRANS; if (isPotential) stroke = '#27272a'; 
+                  worldSize = 2.7; minPixels = 1.5; 
+                  fill = isPotential ? 'rgba(241, 245, 249, 0.5)' : '#e2e8f0'; // Gris suave y sutil
+                  stroke = '#334155'; // Borde adaptado para combinar mejor
               } else if (el.class === 1113) { 
                   worldSize = 1.8; minPixels = 1.0; 
               } else if (el.class === 52) { 
@@ -660,8 +663,13 @@
                 let sx = rx(fx), sy = ry(fy);
                 const sUnsel = getElementStyle(el, false, false), rStable = Math.max(sUnsel.minPixels, sUnsel.worldSize * transform.scale);
                 
-                if (el.class === 52) { const snap = getNearestNetworkPoint(fx, fy); if (snap) { sx = rx(snap.x); sy = ry(snap.y); } } 
-                else if ([1122, 1123, 1369].includes(el.class)) { const snap = pillarSnaps[el.id]; if (snap) { sx = rx(snap.x); sy = ry(snap.y); } }
+                if (el.class === 52) { 
+                    const snap = getNearestNetworkPoint(fx, fy); 
+                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
+                } else if ([1122, 1123, 1369].includes(el.class)) { 
+                    const snap = pillarSnaps[el.id]; 
+                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
+                }
                 
                 const dScreen = Math.hypot(sx - mouseCanvasX, sy - mouseCanvasY);
                 if (dScreen < (CT_CLASSES.includes(el.class) ? Math.max(8, rStable + 2) : Math.max(6, rStable + 2)) && dScreen < bestDistScreen) { bestDistScreen = dScreen; cl = el; }
@@ -737,9 +745,20 @@
             if (xs.length === 0) dataset.elements.forEach(el => {
                 if ([-2, -3, 1, 1219].includes(el.class)) return; 
                 if (isNodeValid(el)) { xs.push(el.x); ys.push(el.y); }
-                if (el._stdCoords) for(let i=0; i<el._stdCoords.length; i+=2) { xs.push(el._stdCoords[i]); ys.push(el._stdCoords[i+1]); }
+                if (el._stdCoords) {
+                    for(let i=0; i<el._stdCoords.length; i+=2) { 
+                        if (isValidNum(el._stdCoords[i]) && isValidNum(el._stdCoords[i+1])) {
+                            xs.push(el._stdCoords[i]); ys.push(el._stdCoords[i+1]); 
+                        }
+                    }
+                }
             });
-            if (xs.length === 0) return;
+            
+            // Fuerte protección contra NaN en las coordenadas (Evita el bug del lienzo en blanco)
+            xs = xs.filter(isValidNum);
+            ys = ys.filter(isValidNum);
+            
+            if (xs.length === 0 || ys.length === 0) return;
             xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
 
             let minX = xs[0], maxX = xs[xs.length-1], minY = ys[0], maxY = ys[ys.length-1];
@@ -756,12 +775,23 @@
             
             const rx1 = getRenderX(minX, curFlipX), rx2 = getRenderX(maxX, curFlipX);
             const ry1 = getRenderY(minY, curFlipY), ry2 = getRenderY(maxY, curFlipY);
-            const ns = Math.min(w / (Math.abs(rx2 - rx1) || 50), h / (Math.abs(ry2 - ry1) || 50)) * 0.85; 
-            setTransform({ scale: ns || 1, x: w/2 - ((rx1+rx2)/2)*ns, y: h/2 - ((ry1+ry2)/2)*ns });
+            const rawScale = Math.min(w / (Math.abs(rx2 - rx1) || 50), h / (Math.abs(ry2 - ry1) || 50)) * 0.85; 
+            const ns = isValidNum(rawScale) ? rawScale : 1;
+            
+            if (isValidNum(ns)) {
+                setTransform({ scale: ns, x: w/2 - ((rx1+rx2)/2)*ns, y: h/2 - ((ry1+ry2)/2)*ns });
+            }
           }, [showMT]);
 
-          const handleDragOver = useCallback((e) => { e.preventDefault(); setIsDraggingFile(true); }, []);
-          const handleDragLeave = useCallback((e) => { e.preventDefault(); setIsDraggingFile(false); }, []);
+          const handleDragOver = useCallback((e) => { 
+              e.preventDefault(); 
+              setIsDraggingFile(true); 
+          }, []);
+          
+          const handleDragLeave = useCallback((e) => { 
+              e.preventDefault(); 
+              setIsDraggingFile(false); 
+          }, []);
 
           // EXTRACTOR DE DICCIONARIOS CON EVALUACIÓN SEGURA
           const processDictionaryData = useCallback((text) => {
@@ -771,84 +801,67 @@
               let foundStreets = 0, foundClasses = 0, foundAreas = 0, foundGraphics = 0, foundAttrs = 0, foundColors = 0, foundLines = 0;
 
               try {
-                  const script = document.createElement('script');
-                  script.type = 'text/javascript';
-                  script.text = `
-                      try {
-                          ${text}
-                          if (typeof STREETS !== "undefined") window.__TEMP_STREETS = STREETS;
-                          if (typeof CLASSES !== "undefined") window.__TEMP_CLASSES = CLASSES;
-                          if (typeof AREANAMES !== "undefined") window.__TEMP_AREANAMES = AREANAMES;
-                          if (typeof GRAPHICS !== "undefined") window.__TEMP_GRAPHICS = GRAPHICS;
-                          if (typeof ATTRDEFS !== "undefined") window.__TEMP_ATTRDEFS = ATTRDEFS;
-                          if (typeof CROMO_COLORS !== "undefined") window.__TEMP_COLORS = CROMO_COLORS;
-                          if (typeof CUSTOM_LINE !== "undefined") window.__TEMP_CUSTOM_LINE = CUSTOM_LINE;
-                      } catch(e) { console.error("Error al inyectar script local", e); }
-                  `;
-                  document.body.appendChild(script);
+                  const safeText = text.replace(/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/g, 'window.$1 =');
+                  const executeScript = new Function(safeText);
+                  executeScript();
 
-                  if (window.__TEMP_STREETS) {
+                  if (window.STREETS) {
                       let dict = { ...streetDictionary };
-                      for (let k in window.__TEMP_STREETS) { 
-                          if (window.__TEMP_STREETS[k] && window.__TEMP_STREETS[k].name) { dict[k] = window.__TEMP_STREETS[k].name; foundStreets++; }
+                      for (let k in window.STREETS) { 
+                          if (window.STREETS[k] && window.STREETS[k].name) { dict[k] = window.STREETS[k].name; foundStreets++; }
                       }
                       setStreetDictionary(dict);
                   }
-                  if (window.__TEMP_CLASSES) {
+                  if (window.CLASSES) {
                       let dict = { ...classDictionary };
-                      for (let k in window.__TEMP_CLASSES) { 
-                          if (window.__TEMP_CLASSES[k] && window.__TEMP_CLASSES[k].description) { dict[k] = window.__TEMP_CLASSES[k].description; foundClasses++; }
+                      for (let k in window.CLASSES) { 
+                          if (window.CLASSES[k] && window.CLASSES[k].description) { dict[k] = window.CLASSES[k].description; foundClasses++; }
                       }
                       setClassDictionary(dict);
                   }
-                  if (window.__TEMP_AREANAMES) {
+                  if (window.AREANAMES) {
                       let dict = { ...areaDictionary };
-                      for (let k in window.__TEMP_AREANAMES) { 
-                          if (window.__TEMP_AREANAMES[k] && window.__TEMP_AREANAMES[k].name) { dict[k] = window.__TEMP_AREANAMES[k].name; foundAreas++; }
+                      for (let k in window.AREANAMES) { 
+                          if (window.AREANAMES[k] && window.AREANAMES[k].name) { dict[k] = window.AREANAMES[k].name; foundAreas++; }
                       }
                       setAreaDictionary(dict);
                   }
-                  if (window.__TEMP_GRAPHICS) {
+                  if (window.GRAPHICS) {
                       let dict = { ...graphicsDictionary };
-                      for (let k in window.__TEMP_GRAPHICS) { 
-                          if (window.__TEMP_GRAPHICS[k] && window.__TEMP_GRAPHICS[k].gs) { dict[k] = window.__TEMP_GRAPHICS[k]; foundGraphics++; }
+                      for (let k in window.GRAPHICS) { 
+                          if (window.GRAPHICS[k]) { dict[k] = window.GRAPHICS[k]; foundGraphics++; }
                       }
                       setGraphicsDictionary(dict);
                   }
-                  if (window.__TEMP_ATTRDEFS) {
+                  if (window.ATTRDEFS) {
                       let dict = { ...attrDictionary };
-                      for (let k in window.__TEMP_ATTRDEFS) { 
-                          if (window.__TEMP_ATTRDEFS[k] && window.__TEMP_ATTRDEFS[k].caption) { dict[k] = window.__TEMP_ATTRDEFS[k]; foundAttrs++; }
+                      for (let k in window.ATTRDEFS) { 
+                          if (window.ATTRDEFS[k] && window.ATTRDEFS[k].caption) { dict[k] = window.ATTRDEFS[k]; foundAttrs++; }
                       }
                       setAttrDictionary(dict);
                   }
-                  if (window.__TEMP_COLORS && window.__TEMP_COLORS.tension) {
-                      let dict = { ...colorDictionary };
-                      for (let k in window.__TEMP_COLORS.tension) {
-                          const def = window.__TEMP_COLORS.tension[k];
-                          if (def && typeof def.value === 'string') { dict[k] = def.value; foundColors++; }
-                      }
-                      setColorDictionary(dict);
-                  }
-                  if (window.__TEMP_CUSTOM_LINE) {
+                  if (window.CUSTOM_LINE) {
                       let dict = { ...lineDictionary };
-                      for (let k in window.__TEMP_CUSTOM_LINE) {
-                          const def = window.__TEMP_CUSTOM_LINE[k];
-                          const arr = def?.value;
-                          if (Array.isArray(arr) && arr.every(n => typeof n === 'number' && isFinite(n))) {
-                              dict[k] = arr;
-                              foundLines++;
-                          }
+                      for (let k in window.CUSTOM_LINE) {
+                          if (window.CUSTOM_LINE[k] && window.CUSTOM_LINE[k].value) { dict[k] = window.CUSTOM_LINE[k].value; foundLines++; }
                       }
                       setLineDictionary(dict);
                   }
+                  if (window.CROMO_COLORS) {
+                      let dict = { ...colorDictionary };
+                      for (let k in window.CROMO_COLORS) {
+                          if (window.CROMO_COLORS[k]) { dict[k] = window.CROMO_COLORS[k]; foundColors++; }
+                      }
+                      setColorDictionary(dict);
+                  }
 
                   // Limpieza
-                  document.body.removeChild(script);
-                  delete window.__TEMP_STREETS; delete window.__TEMP_CLASSES; delete window.__TEMP_AREANAMES; delete window.__TEMP_GRAPHICS; delete window.__TEMP_ATTRDEFS; delete window.__TEMP_COLORS; delete window.__TEMP_CUSTOM_LINE;
+                  delete window.STREETS; delete window.CLASSES; delete window.AREANAMES; delete window.GRAPHICS; delete window.ATTRDEFS; delete window.CUSTOM_LINE; delete window.CROMO_COLORS;
 
               } catch(e) {
-                  console.warn("Fallo inyección", e);
+                  console.warn("Fallo inyección de diccionario", e);
+                  setMessage({ text: 'Error al procesar el archivo. Asegúrate de que sea un diccionario válido.', type: 'error' });
+                  return;
               }
               
               let msgParts = [];
@@ -857,35 +870,44 @@
               if (foundAreas > 0) msgParts.push(`${foundAreas} áreas`);
               if (foundGraphics > 0) msgParts.push(`${foundGraphics} gráficos`);
               if (foundAttrs > 0) msgParts.push(`${foundAttrs} atributos`);
-              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
               if (foundLines > 0) msgParts.push(`${foundLines} tipos de línea`);
+              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
               
               if (msgParts.length > 0) {
                   setDictRawData('');
                   setMessage({ text: `¡Diccionarios cargados! El visor aprendió: ${msgParts.join(', ')}.`, type: 'success' });
               } else {
-                  setMessage({ text: 'No se encontraron diccionarios reconocidos en el texto.', type: 'error' });
+                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios (STREETS, GRAPHICS, etc).', type: 'error' });
               }
-          }, [streetDictionary, classDictionary, areaDictionary, graphicsDictionary, attrDictionary]);
+          }, [streetDictionary, classDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
 
           const handleDrop = useCallback((e) => {
-            e.preventDefault(); setIsDraggingFile(false);
-            const files = Array.from(e.dataTransfer.files || []);
-            if (files.length > 0) {
-                files.forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        const text = ev.target.result;
-                        if (file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line|model|symbol)/)) {
-                            processDictionaryData(text); setViewMode('input');
-                        } else {
-                            processData(true, text);
-                        }
-                    };
-                    reader.readAsText(file);
-                });
-            }
-          }, [processDictionaryData, processData]);
+            e.preventDefault(); 
+            setIsDraggingFile(false);
+            
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length === 0) return;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const text = ev.target.result;
+                    
+                    // Verificamos si es un diccionario basado en extensión, nombre o contenido clave
+                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
+                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
+                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
+                    
+                    if (isDictFile) {
+                        processDictionaryData(text);
+                        if (viewMode !== 'map') setViewMode('input');
+                    } else {
+                        processData(true, text);
+                    }
+                };
+                reader.readAsText(file);
+            });
+          }, [viewMode, processDictionaryData, processData]);
 
           const processData = useCallback((isAppend = false, customText = null) => {
             setMessage(null);
@@ -894,7 +916,7 @@
               if (!text) return;
               
               // Buscamos dinamicamente si el texto contiene diccionarios.
-              if (text.includes("STREETS={") || text.includes("GRAPHICS = {") || text.includes("CLASSES={") || text.includes("ATTRDEFS") || text.includes("CROMO_COLORS")) {
+              if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
               }
 
@@ -913,15 +935,34 @@
               let newElements = [];
               blocks.forEach(block => {
                 let el = {}; try { el = new Function('return (' + block + ')')() || {}; } catch (e) { return; }
+                
+                // Forzamos conversión segura de ID para evitar falsos negativos en 'includes()'
+                if (el.class !== undefined && el.class !== null) el.class = Number(el.class);
+
                 const ext = (r) => { let m = block.match(r); return m ? m[1].split(/[\s,]+/).map(n => parseFloat(n)).filter(isValidNum) : null; };
                 let coords = ext(/\bc\s*:\s*\[([\s\d.,-]+)\]/) || ext(/\bpoints\s*:\s*['"]([\s\d.,-]+)['"]/) || ext(/\bp\s*:\s*\[([\s\d.,-]+)\]/);
-                if (coords && coords.length >= 2) { if (coords.length === 2) { el.x = coords[0]; el.y = coords[1]; } else el._stdCoords = coords; }
-                if (el.x !== undefined) { el.x = absX(el.x); el.y = absY(el.y); }
-                if (el._stdCoords) { for (let i = 0; i < el._stdCoords.length - 1; i += 2) { el._stdCoords[i] = absX(el._stdCoords[i]); el._stdCoords[i+1] = absY(el._stdCoords[i+1]); } }
-                if (el.text) el.text.forEach(t => { if (isValidNum(t.x)) t.x = absX(t.x); if (isValidNum(t.y)) t.y = absY(t.y); });
+                
+                if (coords && coords.length >= 2) { 
+                    if (coords.length === 2) { el.x = coords[0]; el.y = coords[1]; } 
+                    else el._stdCoords = coords; 
+                }
+                if (el.x !== undefined && isValidNum(el.x)) { el.x = absX(el.x); el.y = absY(el.y); }
+                
+                if (el._stdCoords) { 
+                    let validCoords = [];
+                    for (let i = 0; i < el._stdCoords.length - 1; i += 2) { 
+                        if (isValidNum(el._stdCoords[i]) && isValidNum(el._stdCoords[i+1])) {
+                            validCoords.push(absX(el._stdCoords[i]), absY(el._stdCoords[i+1]));
+                        }
+                    }
+                    el._stdCoords = validCoords;
+                }
+                
+                if (el.text && Array.isArray(el.text)) el.text.forEach(t => { if (t && isValidNum(t.x)) t.x = absX(t.x); if (t && isValidNum(t.y)) t.y = absY(t.y); });
                 if (el.from && isValidNum(el.from.x)) { el.from.x = absX(el.from.x); el.from.y = absY(el.from.y); }
                 if (el.to && isValidNum(el.to.x)) { el.to.x = absX(el.to.x); el.to.y = absY(el.to.y); }
-                if (el.x !== undefined || el._stdCoords) newElements.push(el);
+                
+                if ((el.x !== undefined && isValidNum(el.x)) || (el._stdCoords && el._stdCoords.length > 0)) newElements.push(el);
               });
 
               let combined = [];
@@ -940,7 +981,7 @@
                       newElements.forEach(el => {
                           if (el.x !== undefined) { el.x += offsetX; el.y += offsetY; }
                           if (el._stdCoords) for (let i = 0; i < el._stdCoords.length; i += 2) { el._stdCoords[i] += offsetX; el._stdCoords[i+1] += offsetY; }
-                          if (el.text) el.text.forEach(t => { if (isValidNum(t.x)) t.x += offsetX; if (isValidNum(t.y)) t.y += offsetY; });
+                          if (el.text && Array.isArray(el.text)) el.text.forEach(t => { if (t && isValidNum(t.x)) t.x += offsetX; if (t && isValidNum(t.y)) t.y += offsetY; });
                           if (el.from && isValidNum(el.from.x)) { el.from.x += offsetX; el.from.y += offsetY; }
                           if (el.to && isValidNum(el.to.x)) { el.to.x += offsetX; el.to.y += offsetY; }
                       });
@@ -989,7 +1030,7 @@
               if (!isAppend) setTimeout(() => fitToScreenSafe(processed, exportFlipX, exportFlipY), 50);
               
               setMessage({ text: 'Mapa cargado correctamente.', type: 'success' });
-            } catch (err) { setMessage({ text: 'Error procesando el mapa.', type: 'error' }); }
+            } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
 
           const isTraceable = selectedFeature ? (NETWORK_CLASSES.includes(selectedFeature.class) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
@@ -1019,9 +1060,8 @@
             });
 
             const terminalsToDraw = [], nodeLayoutCache = {}; 
-            const drawnTexts = new Set(); // Filtro Anti-Repetición de fuentes
+            const drawnTexts = new Set(); 
 
-            // Helper para evitar textos solapados exactos o cercanos
             const checkAndRegisterText = (text, screenX, screenY, tolerance = 15) => {
                 const key = `${text}_${Math.round(screenX/tolerance)}_${Math.round(screenY/tolerance)}`;
                 if (drawnTexts.has(key)) return true;
@@ -1031,26 +1071,34 @@
 
             // 1. CAPA BASE Y CALLES: Fondo (Manzanas y Ejes viales)
             data.elements.forEach(el => {
-              if (el._stdCoords) {
-                  if (el.class === 1 || el.class === 1219) {
-                      ctx.beginPath(); let m = true;
-                      for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                      ctx.closePath(); ctx.fillStyle = el.class === 1 ? '#f4f4ec' : '#f8f8f2'; ctx.fill(); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.8; ctx.stroke();
-                  } else if (!NETWORK_CLASSES.includes(el.class) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
-                      ctx.beginPath(); let m = true;
-                      for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                      ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
+              try {
+                  const cIdStr = String(el.class);
+                  // Ignorar los Transformadores a nivel en la capa base por si tienen coordenadas.
+                  if (cIdStr === '16' || cIdStr === '3') return; 
+
+                  if (el._stdCoords) {
+                      if (el.class === 1 || el.class === 1219) {
+                          ctx.beginPath(); let m = true;
+                          for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
+                          ctx.closePath(); ctx.fillStyle = el.class === 1 ? '#f4f4ec' : '#f8f8f2'; ctx.fill(); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.8; ctx.stroke();
+                      } else if (!NETWORK_CLASSES.includes(el.class) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
+                          ctx.beginPath(); let m = true;
+                          for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
+                          ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
+                      }
                   }
-              }
+              } catch(e) {}
             });
 
             // 1.5 CAPA DE TEXTOS DE CALLE (Inteligente)
             data.elements.forEach(el => {
+              try {
                 const isStreetElement = el.class === -2 || el.class === -3 || el.class === 1 || el.class === 1219;
                 if (isStreetElement && !showStreetNames) return;
 
                 if (el.text && Array.isArray(el.text) && isStreetElement) {
                     el.text.forEach(t => {
+                        if (!t) return;
                         const rawTextStr = t.str !== undefined ? t.str : (t.text !== undefined ? t.text : t.val);
                         if (rawTextStr === undefined || rawTextStr === null || String(rawTextStr).trim() === '') return;
                         
@@ -1060,8 +1108,9 @@
                             else if (streetDictionary[Math.round(Number(displayStr))]) displayStr = streetDictionary[Math.round(Number(displayStr))];
                         }
                         
+                        if (!isValidNum(t.x) || !isValidNum(t.y)) return;
                         const tx = rx(t.x), ty = ry(t.y);
-                        if (tx < -100 || tx > rect.width + 100 || ty < -100 || ty > rect.height + 100) return;
+                        if (!isValidNum(tx) || !isValidNum(ty) || tx < -100 || tx > rect.width + 100 || ty < -100 || ty > rect.height + 100) return;
 
                         if (checkAndRegisterText(displayStr, tx, ty, 15)) return;
 
@@ -1086,15 +1135,18 @@
                         ctx.restore();
                     });
                 }
+              } catch(e) {}
             });
 
             // 1.6 Nombres de Calles y Alturas calculadas (SOLO clase -2)
             if (showStreetNames) {
                 data.elements.forEach(el => {
+                  try {
                     if (el.class === -2 && el._stdCoords && el._stdCoords.length >= 4) {
                         let maxLenSq = -1, bestSx1 = 0, bestSy1 = 0, bestSx2 = 0, bestSy2 = 0;
                         for(let i=0; i<el._stdCoords.length-3; i+=2) {
                             const sx1 = rx(el._stdCoords[i]), sy1 = ry(el._stdCoords[i+1]), sx2 = rx(el._stdCoords[i+2]), sy2 = ry(el._stdCoords[i+3]);
+                            if (!isValidNum(sx1) || !isValidNum(sy1) || !isValidNum(sx2) || !isValidNum(sy2)) continue;
                             const lenSq = (sx2 - sx1)**2 + (sy2 - sy1)**2;
                             if (lenSq > maxLenSq) { maxLenSq = lenSq; bestSx1 = sx1; bestSy1 = sy1; bestSx2 = sx2; bestSy2 = sy2; }
                         }
@@ -1123,133 +1175,64 @@
                                     }
                                 }
                             }
-
-                            const drawNum = (obj, isStart) => {
-                                if (obj && obj.num !== undefined && isValidNum(obj.x) && isValidNum(obj.y)) {
-                                    const nx = rx(obj.x), ny = ry(obj.y);
-                                    if (nx > 0 && nx < rect.width && ny > 0 && ny < rect.height) {
-                                        const numSize = Math.max(4.5, 0.8 * transform.scale);
-                                        if (numSize >= 4.5 && numSize < 100) {
-                                            let sDx, sDy;
-                                            if (isStart) {
-                                                sDx = rx(el._stdCoords[2]) - rx(el._stdCoords[0]);
-                                                sDy = ry(el._stdCoords[3]) - ry(el._stdCoords[1]);
-                                            } else {
-                                                const l = el._stdCoords.length;
-                                                sDx = rx(el._stdCoords[l-2]) - rx(el._stdCoords[l-4]);
-                                                sDy = ry(el._stdCoords[l-1]) - ry(el._stdCoords[l-3]);
-                                            }
-                                            let sLen = Math.hypot(sDx, sDy);
-                                            if (sLen === 0) { sDx = dx; sDy = dy; sLen = len; }
-                                            
-                                            const pushDist = numSize * 1.5; 
-                                            const px = nx + (isStart ? (sDx/sLen) * pushDist : -(sDx/sLen) * pushDist);
-                                            const py = ny + (isStart ? (sDy/sLen) * pushDist : -(sDy/sLen) * pushDist);
-
-                                            if (checkAndRegisterText(obj.num, px, py, 15)) return;
-
-                                            ctx.save();
-                                            ctx.translate(px, py);
-                                            
-                                            let sAngRad = Math.atan2(sDy, sDx), sFlipped = false;
-                                            if (sAngRad > Math.PI/2 || sAngRad < -Math.PI/2) { sAngRad += Math.PI; sFlipped = true; }
-                                            
-                                            ctx.rotate(sAngRad); ctx.font = `600 ${numSize}px "Segoe UI", Arial, sans-serif`;
-                                            ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center'; ctx.textBaseline = sFlipped ? 'top' : 'bottom';
-                                            ctx.fillText(String(obj.num), 0, sFlipped ? 1 : -1); ctx.restore();
-                                        }
-                                    }
-                                }
-                            };
-                            drawNum(el.from, true); drawNum(el.to, false);
                         }
                     }
+                  } catch(e) {}
                 });
             }
 
             // 2. CAPA INFERIOR: Red BT/MT y Puentes con Trazos Reales
             data.elements.forEach(el => {
-              if (!showMT && MT_LINE_CLASSES.includes(el.class)) return; 
-              if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
-                const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
-                const isHov = hoveredFeature?.id === el.id;
-                const s = getElementStyle(el, isSel, isHov);
-                if (onlyShowConnected && !s.isConnected) return;
-                
-                ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath(); let m = true;
-                for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                ctx.strokeStyle = s.stroke; 
-                
-                if (el.class === 1097 || el.class === 'Puente') { 
-                    ctx.lineWidth = isSel ? 6 : (isHov ? 5 : 4); 
-                    ctx.setLineDash([]); 
-                } else {
-                    ctx.lineWidth = isSel ? 3.5 : (isHov ? 2.5 : (s.isConnected ? 2.2 : 1.4)); 
+              try {
+                  if (!showMT && MT_LINE_CLASSES.includes(el.class)) return; 
+                  if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+                    const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
+                    const isHov = hoveredFeature?.id === el.id;
+                    const s = getElementStyle(el, isSel, isHov);
+                    if (onlyShowConnected && !s.isConnected) return;
                     
-                    let dashArray = [];
-                    if (el['line-type'] && lineDictionary[el['line-type']]) {
-                        dashArray = lineDictionary[el['line-type']].map(v => v * 3.5);
-                    } else {
-                        if (el.class === 1091) dashArray = lineDictionary['cusmt'] ? lineDictionary['cusmt'].map(v=>v*3.5) : [10.5, 5.25];
-                        else if (el.class === 1095) dashArray = lineDictionary['casbt'] ? lineDictionary['casbt'].map(v=>v*3.5) : [1.75, 1.75];
-                        else if (el.class === 1089) dashArray = [];
-                        else if (el.class === 1093) dashArray = [];
-                        else if (el.class === 1094) dashArray = [2, 2];
+                    ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath(); let m = true;
+                    for (let i = 0; i < el._stdCoords.length; i += 2) { 
+                        const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); 
+                        if (!isValidNum(sx) || !isValidNum(sy)) continue;
+                        if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); 
                     }
-                    ctx.setLineDash(dashArray);
-                }
-                ctx.stroke(); ctx.restore();
-              }
+                    ctx.strokeStyle = s.stroke; 
+                    
+                    if (el.class === 1097 || el.class === 'Puente') { 
+                        ctx.lineWidth = isSel ? 6 : (isHov ? 5 : 4); 
+                        ctx.setLineDash([]); 
+                    } else {
+                        ctx.lineWidth = isSel ? 3.5 : (isHov ? 2.5 : (s.isConnected ? 2.2 : 1.4)); 
+                        
+                        let dashArray = [];
+                        if (el['line-type'] && lineDictionary[el['line-type']]) {
+                            dashArray = lineDictionary[el['line-type']].map(v => v * 3.5);
+                        } else {
+                            if (el.class === 1091) dashArray = lineDictionary['cusmt'] ? lineDictionary['cusmt'].map(v=>v*3.5) : [10.5, 5.25];
+                            else if (el.class === 1095) dashArray = lineDictionary['casbt'] ? lineDictionary['casbt'].map(v=>v*3.5) : [1.75, 1.75];
+                            else if (el.class === 1089) dashArray = [];
+                            else if (el.class === 1093) dashArray = [];
+                            else if (el.class === 1094) dashArray = [2, 2];
+                        }
+                        ctx.setLineDash(dashArray);
+                    }
+                    ctx.stroke(); ctx.restore();
+                  }
+              } catch(e) {}
             });
 
-            const renderCTFromDictionary = (ct, s, r, isSel, isHov) => {
-                const ids = (Array.isArray(ct.gs) && ct.gs.length > 0) ? ct.gs : [ct.class];
-                for (const gId of ids) {
-                    const gDef = graphicsDictionary[gId];
-                    if (!gDef || !Array.isArray(gDef.gs)) continue;
-                    const scale = Math.max(0.01, (r / 2.5) * (isValidNum(gDef.scale) ? gDef.scale : 1));
-                    try {
-                        ctx.save();
-                        ctx.scale(scale, scale);
-                        for (const g of gDef.gs) {
-                            const attr = g?.attr || {};
-                            const stroke = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (attr.stroke || s.stroke));
-                            const fill = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (attr.fill || s.fill || '#ffffff'));
-                            const lineW = ((isValidNum(attr['stroke-width']) ? attr['stroke-width'] : 0.1) / scale) * 2.5;
-                            const willStroke = attr.stroke === undefined || attr.stroke !== 'none';
-                            const willFill = attr.fill !== undefined && attr.fill !== 'none';
-                            const oldAlpha = ctx.globalAlpha;
-                            if (isValidNum(attr['fill-opacity']) && !isSel && !isHov) ctx.globalAlpha = oldAlpha * attr['fill-opacity'];
-
-                            ctx.strokeStyle = stroke; ctx.fillStyle = fill; ctx.lineWidth = lineW;
-                            if (attr.d) {
-                                const path = new Path2D(attr.d);
-                                if (willFill) ctx.fill(path);
-                                if (willStroke) ctx.stroke(path);
-                            } else if (isValidNum(attr.x1) && isValidNum(attr.y1) && isValidNum(attr.x2) && isValidNum(attr.y2)) {
-                                ctx.beginPath(); ctx.moveTo(attr.x1, attr.y1); ctx.lineTo(attr.x2, attr.y2); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.r)) {
-                                ctx.beginPath(); ctx.arc(attr.cx || 0, attr.cy || 0, attr.r, 0, 2*Math.PI); if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.width) && isValidNum(attr.height)) {
-                                ctx.beginPath(); ctx.rect(attr.x || 0, attr.y || 0, attr.width, attr.height); if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (attr.points) {
-                                const pts = String(attr.points).trim().split(/\s+|,/).map(Number).filter(n => !isNaN(n));
-                                if (pts.length >= 4) { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length - 1; i += 2) ctx.lineTo(pts[i], pts[i+1]); if (willFill) ctx.fill(); if (willStroke) ctx.stroke(); }
-                            }
-                            ctx.globalAlpha = oldAlpha;
-                        }
-                        ctx.restore();
-                        return true;
-                    } catch (e) {
-                        try { ctx.restore(); } catch (_) {}
-                    }
-                }
-                return false;
-            };
-
             const renderNode = (el, isHighlightRender = false) => {
-                if (!showMT && MT_POLE_CLASSES.includes(el.class)) return; 
-                if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
+              try {
+                const cIdStr = String(el.class);
+                
+                // --- REGLA ABSOLUTA: OCULTAR TRANSFORMADORES (No dibujar) ---
+                if (cIdStr === '16' || cIdStr === '3') return;
+                const desc = classDictionary[el.class] ? String(classDictionary[el.class]).toUpperCase() : '';
+                if (desc.includes('TRANSFORMADOR') && !CT_CLASSES.includes(el.class) && !CT_CLASSES.includes(Number(el.class))) return;
+                
+                if (!showMT && (MT_POLE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(Number(el.class)))) return; 
+                if (!isNodeValid(el)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const fx = el.x + (el._autoDx || 0) + edit.dx;
@@ -1260,134 +1243,235 @@
                 if (onlyShowConnected && !s.isConnected) return;
                 
                 let sx = rx(fx), sy = ry(fy);
-                const r = Math.max(s.minPixels, s.worldSize * transform.scale);
-                
-                let snappedEnd = null;
-                if (el.class === 52) { 
+                if (!isValidNum(sx) || !isValidNum(sy)) return;
+
+                let ctRotation = 0;
+
+                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                    ctRotation = computeCtOrientation(el).rotation;
+                } else if (el.class === 52) { 
                     const snap = getNearestNetworkPoint(fx, fy); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
                 } else if ([1122, 1123, 1369].includes(el.class)) {
-                    snappedEnd = pillarSnaps[el.id];
+                    const snappedEnd = pillarSnaps[el.id];
                     if (snappedEnd) { sx = rx(snappedEnd.x); sy = ry(snappedEnd.y); }
                 }
+
+                const r = Math.max(s.minPixels, s.worldSize * transform.scale);
                 
                 ctx.save();
                 ctx.globalAlpha = s.opacity;
                 ctx.translate(sx, sy);
-                const streetAng = getStreetAngleAt(fx, fy) + edit.rot;
                 
+                let angleRad = 0;
                 let rawAngDeg = null;
                 if (el.ang !== undefined) rawAngDeg = el.ang;
 
-                let angleRad = 0;
                 if (rawAngDeg !== null) {
                     let rotRad = (rawAngDeg * Math.PI) / 180;
                     if (exportFlipY) rotRad = -rotRad;
                     if (exportFlipX) rotRad = Math.PI - rotRad;
                     angleRad = rotRad + (edit.rot * Math.PI) / 180;
                 } else {
-                    angleRad = (streetAng * Math.PI) / 180;
-                    angleRad += (edit.rot * Math.PI) / 180;
+                    if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                        angleRad = ((ctRotation + edit.rot) * Math.PI) / 180;
+                    } else if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
+                        angleRad = (edit.rot * Math.PI) / 180;
+                    } else {
+                        const streetAng = getStreetAngleAt(fx, fy) + edit.rot;
+                        angleRad = (streetAng * Math.PI) / 180;
+                    }
                 }
 
+                // ==========================================
+                // REGLA ABSOLUTA 2: SUMINISTROS (MEDIDORES)
+                // ==========================================
+                if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
+                    ctx.rotate(angleRad);
+                    const isPotential = el.class === 1373;
+                    
+                    ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI);
+                    if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); } 
+                    ctx.strokeStyle = s.stroke; ctx.lineWidth = isPotential ? 1.5 : 1.2; ctx.stroke();
+                    
+                    if (isPotential) { 
+                        ctx.font = `300 ${Math.round(r * 1.3)}px "Segoe UI", Arial, sans-serif`; 
+                        ctx.fillStyle = s.stroke; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+                        ctx.fillText('P', 0, r * 0.05); 
+                    } else if (transform.scale > 0.35) {
+                        ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; 
+                        ctx.beginPath(); 
+                        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);
+                        ctx.moveTo(0, 0); ctx.lineTo(0, r);
+                        ctx.stroke();
+                        
+                        ctx.fillStyle = s.isConnected ? '#334155' : '#64748b'; 
+                        ctx.textAlign = 'center';
+                        
+                        ctx.textBaseline = 'bottom';
+                        ctx.font = `bold ${Math.max(3, r * 0.6)}px "Segoe UI", sans-serif`;
+                        const topText = String(el.ni || el.name || 'S/N');
+                        ctx.fillText(topText, 0, -r * 0.05);
+
+                        ctx.textBaseline = 'top';
+                        ctx.font = `${Math.max(2.5, r * 0.45)}px "Segoe UI", sans-serif`;
+                        const blText = String(el.fases !== undefined ? el.fases : (el.f !== undefined ? el.f : '1'));
+                        ctx.fillText(blText, -r * 0.45, r * 0.1);
+
+                        const kwVal = el.kw !== undefined ? el.kw : (el.pot !== undefined ? el.pot : (el.carga !== undefined ? el.carga : (el.alt !== undefined ? el.alt : '')));
+                        if (kwVal !== '') {
+                            ctx.fillText(String(kwVal), r * 0.45, r * 0.1);
+                        }
+                    }
+
+                    ctx.restore();
+                    return; // SALIDA INMEDIATA
+                }
+
+                // ==========================================
+                // DICCIONARIOS Y ELEMENTOS REGULARES (CTs Triángulos, Postes, etc.)
+                // ==========================================
                 let graphicIds = el.gs && el.gs.length > 0 ? el.gs : [el.class];
                 let renderedCustomGraphic = false;
                 
                 graphicIds.forEach(gId => {
-                    const gDef = graphicsDictionary[gId];
-                    if (gDef && gDef.gs) {
+                    const gDef = typeof gId === 'object' ? { type: 1, gs: [gId] } : graphicsDictionary[gId];
+                    
+                    if (gDef && (gDef.gs || gDef.type === 2)) {
                         renderedCustomGraphic = true;
                         
                         ctx.save();
                         ctx.rotate(angleRad);
                         
-                        const renderScale = (r / 2.5) * (gDef.scale || 1.0);
-                        ctx.scale(renderScale, renderScale);
+                        const renderScale = (r / 2.0) * (gDef.scale || 1.0);
+                        ctx.scale(renderScale, -renderScale);
 
-                        gDef.gs.forEach(g => {
-                            const attr = g.attr || {};
-                            const textContent = attr.text || g.text || attr.textContent || attr.str;
+                        if (gDef.type === 2) {
+                            ctx.beginPath();
+                            ctx.moveTo(-10, 0);
+                            ctx.lineTo(10, 0);
+                            ctx.strokeStyle = gDef.color || s.stroke || "#000";
+                            ctx.lineWidth = gDef.scale || (2 / renderScale);
+                            if (gDef['line-type'] && gDef['line-type'] !== 'continuous') ctx.setLineDash([5, 5]);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                        } else if (gDef.gs) {
+                            gDef.gs.forEach(g => {
+                                if (!g) return;
+                                const attr = g.attr || {};
+                                let willStroke = attr.stroke && attr.stroke !== 'none';
+                                let willFill = attr.fill && attr.fill !== 'none';
 
-                            let willStroke = attr.stroke && attr.stroke !== 'none';
-                            let willFill = attr.fill && attr.fill !== 'none';
-                            if (attr.stroke === undefined) willStroke = true;
-                            if (attr.fill === undefined) willFill = false;
-
-                            if (isSel) {
-                                ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
-                            } else if (isHov) {
-                                ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6';
-                            } else {
-                                ctx.strokeStyle = attr.stroke || s.stroke;
-                                ctx.fillStyle = attr.fill || s.fill || '#ffffff';
-                            }
-
-                            ctx.lineWidth = (attr['stroke-width'] || 0.1) * (1 / renderScale) * 2.5; 
-                            
-                            const originalAlpha = ctx.globalAlpha;
-                            if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
-                                ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
-                            }
-
-                            if (textContent) {
-                                const txtSize = attr['font-size'] || attr.size || 1.5;
-                                const absTxtSize = txtSize * renderScale * 1.5;
-                                ctx.save();
-                                ctx.scale(1/renderScale, 1/renderScale); 
-                                ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
-                                if (!isSel && !isHov) ctx.fillStyle = attr.stroke || attr.fill || '#000000'; 
-                                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                                ctx.fillText(textContent, (attr.x || 0) * renderScale, (attr.y || 0) * renderScale);
-                                ctx.restore();
-                            } else if (attr.d || g.type === 5) {
-                                if (attr.d) {
-                                    const p = new Path2D(attr.d);
-                                    if (willFill) ctx.fill(p);
-                                    if (willStroke) ctx.stroke(p);
+                                if (!willStroke && !willFill) {
+                                    willStroke = true;
+                                    attr.stroke = "#1e293b";
                                 }
-                            } else if (isValidNum(attr.width) && isValidNum(attr.height)) {
-                                ctx.beginPath(); ctx.rect((attr.x || 0), (attr.y || 0), attr.width, attr.height);
-                                if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.r)) {
-                                ctx.beginPath(); ctx.arc(attr.cx || 0, attr.cy || 0, attr.r, 0, 2*Math.PI);
-                                if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.x1) && isValidNum(attr.x2)) {
-                                ctx.beginPath(); ctx.moveTo(attr.x1, attr.y1); ctx.lineTo(attr.x2, attr.y2);
-                                if (willStroke) ctx.stroke();
-                            } else if (attr.points) {
-                                const pts = attr.points.trim().split(/\s+|,/);
-                                if (pts.length >= 2) {
-                                    ctx.beginPath();
-                                    for (let i = 0; i < pts.length; i += 2) {
-                                        const px = parseFloat(pts[i]), py = parseFloat(pts[i+1]);
-                                        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+
+                                if (isSel) {
+                                    ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
+                                } else if (isHov) {
+                                    ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6';
+                                } else {
+                                    ctx.strokeStyle = attr.stroke || s.stroke;
+                                    ctx.fillStyle = attr.fill || s.fill || '#ffffff';
+                                    
+                                    // HOMOGENEIZACIÓN DE COLOR CT: Gris oscuro original en vez de negro puro
+                                    if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                        if (ctx.strokeStyle === '#000000' || ctx.strokeStyle === '#1e293b') ctx.strokeStyle = '#334155';
+                                        if (ctx.fillStyle === '#000000' || ctx.fillStyle === '#1e293b') ctx.fillStyle = '#334155';
                                     }
-                                    if (attr.closed) ctx.closePath();
-                                    if (willFill) ctx.fill();
-                                    if (willStroke) ctx.stroke();
                                 }
-                            }
-                            ctx.globalAlpha = originalAlpha;
-                        });
+
+                                let strokeW = attr['stroke-width'];
+                                if (strokeW === undefined) strokeW = willStroke ? 0.1 : 0;
+                                
+                                // BORDES EN NEGRITA PARA CTs
+                                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                    ctx.lineWidth = Math.max(1.8 / renderScale, strokeW * (1 / renderScale) * 5.0);
+                                } else {
+                                    ctx.lineWidth = Math.max(0.3 / renderScale, strokeW * (1 / renderScale) * 2.5); 
+                                }
+                                
+                                const originalAlpha = ctx.globalAlpha;
+                                if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
+                                    ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
+                                }
+
+                                const shapeType = g.type;
+                                if (shapeType === 1) { 
+                                    ctx.beginPath(); ctx.moveTo(attr.x1 || 0, attr.y1 || 0); ctx.lineTo(attr.x2 || 0, attr.y2 || 0);
+                                    if (willStroke) ctx.stroke();
+                                } else if (shapeType === 2 || isValidNum(attr.r) || isValidNum(attr.radius)) { 
+                                    ctx.beginPath(); ctx.arc(attr.cx || attr.x || 0, attr.cy || attr.y || 0, attr.r || attr.radius || 1, 0, 2*Math.PI);
+                                    if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                                } else if (shapeType === 3 || shapeType === 5 || attr.d) {
+                                    if (attr.d) {
+                                        const p = new Path2D(attr.d);
+                                        if (willFill) ctx.fill(p);
+                                        if (willStroke) ctx.stroke(p);
+                                    }
+                                } else if (shapeType === 4 || attr.text || g.text || attr.textContent || attr.str) {
+                                    const textContent = attr.text || g.text || attr.textContent || attr.str;
+                                    if (textContent) {
+                                        const txtSize = attr['font-size'] || attr.size || 1.5;
+                                        const absTxtSize = txtSize * renderScale * 1.5;
+                                        ctx.save();
+                                        
+                                        // Anti-giro para textos embebidos en el diccionario de los CTs
+                                        let flipText = false;
+                                        if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                            let deg = (angleRad * 180) / Math.PI;
+                                            deg = ((deg % 360) + 360) % 360;
+                                            if (deg > 90 && deg <= 270) flipText = true;
+                                        }
+
+                                        ctx.scale(1/renderScale, -1/renderScale); 
+                                        if (flipText) ctx.rotate(Math.PI);
+                                        
+                                        ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
+                                        if (!isSel && !isHov) {
+                                            ctx.fillStyle = attr.stroke || attr.fill || '#000000';
+                                            if ((CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) && (ctx.fillStyle === '#000000' || ctx.fillStyle === '#1e293b')) ctx.fillStyle = '#334155';
+                                        }
+                                        
+                                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                                        
+                                        let txtX = (attr.x || 0) * renderScale;
+                                        let txtY = -(attr.y || 0) * renderScale;
+                                        if (flipText) { txtX = -txtX; txtY = -txtY; }
+
+                                        ctx.fillText(textContent, txtX, txtY);
+                                        ctx.restore();
+                                    }
+                                } else if (isValidNum(attr.width) && isValidNum(attr.height)) { 
+                                    ctx.beginPath(); ctx.rect((attr.x || 0), (attr.y || 0), attr.width, attr.height);
+                                    if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                                } else if (attr.points) {
+                                    const pts = attr.points.trim().split(/\s+|,/);
+                                    if (pts.length >= 2) {
+                                        ctx.beginPath();
+                                        for (let i = 0; i < pts.length; i += 2) {
+                                            const px = parseFloat(pts[i]), py = parseFloat(pts[i+1]);
+                                            if (isValidNum(px) && isValidNum(py)) {
+                                                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                                            }
+                                        }
+                                        if (attr.closed) ctx.closePath();
+                                        if (willFill) ctx.fill();
+                                        if (willStroke) ctx.stroke();
+                                    }
+                                }
+                                ctx.globalAlpha = originalAlpha;
+                            });
+                        }
                         ctx.restore();
                     }
                 });
 
                 if (!renderedCustomGraphic) {
                     ctx.rotate(angleRad); 
-                    if (SUPPLY_CLASSES.includes(el.class)) {
-                      const isPotential = el.class === 1373;
-                      ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI);
-                      if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); } 
-                      ctx.strokeStyle = s.stroke; ctx.lineWidth = isPotential ? 1.5 : 1.2; ctx.stroke();
-                      if (isPotential) { ctx.font = `300 ${Math.round(r * 1.3)}px "Segoe UI", Arial, sans-serif`; ctx.fillStyle = s.stroke; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('P', 0, r * 0.05); } 
-                      else if (transform.scale > 0.35) {
-                        ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, 0); ctx.lineTo(0, r); ctx.stroke();
-                        ctx.font = `bold ${Math.round(r * 0.45)}px sans-serif`; ctx.fillStyle = s.isConnected ? s.stroke : '#94a3b8'; ctx.textAlign = 'center';
-                        const supplyLabel = el.alt ?? el.ni ?? el.num ?? el.id;
-                        if (supplyLabel !== undefined && supplyLabel !== null && String(supplyLabel).trim() !== '') ctx.fillText(String(supplyLabel), 0, -r * 0.45);
-                      }
-                    } else if ([1122, 1123, 1369].includes(el.class)) {
+                    
+                    if ([1122, 1123, 1369].includes(el.class)) {
                         const size = r * 1.2;
                         let rectX = -size / 2, rectY = -size / 2;
                         
@@ -1447,11 +1531,12 @@
                     }
                 }
                 
-                // Dibujo de Textos Embebidos (CORRECCIÓN DE TEXTO NEGRO REPETIDO)
                 ctx.restore(); 
+
+                // Textos Embebidos (Solo para postes, cajas y otros. CTs y Suministros se filtraron arriba)
                 if (el.text && Array.isArray(el.text) && el.class !== -2 && el.class !== -3 && el.class !== 1) {
                     el.text.forEach(t => {
-                        // SOLUCIÓN AQUÍ: Se eliminó el `|| el.alt`
+                        if (!t) return;
                         const rawTextStr = t.str !== undefined ? t.str : (t.text !== undefined ? t.text : t.val);
                         if (rawTextStr === undefined || rawTextStr === null || String(rawTextStr).trim() === '') return;
                         
@@ -1462,6 +1547,7 @@
                             ty -= r * 1.5; 
                         }
 
+                        if (!isValidNum(tx) || !isValidNum(ty)) return;
                         if (checkAndRegisterText(String(rawTextStr).trim(), tx, ty, 10)) return;
 
                         ctx.save(); ctx.translate(tx, ty);
@@ -1486,56 +1572,65 @@
                         ctx.restore();
                     });
                 }
+
+              } catch(err) {
+                  // Fallback de seguridad estricto para evitar bloqueos del render principal
+                  console.warn("Fallo menor al renderizar un nodo", el, err);
+              }
             };
 
-            data.elements.forEach(el => {
-                if (![39, 1122, 1123, 1369, 1113].includes(el.class)) renderNode(el);
-            });
-
+            // 3. Primero dibujamos las conexiones de los CTs hacia sus bornes por debajo
             Object.keys(ctGroups).forEach(mk => {
-              const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
-              if (ct) {
-                const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
-                const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
-                const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
-                if (onlyShowConnected && !s.isConnected) return;
-                const geo = computeCtOrientation(ct);
-                const baseR = Math.max(s.minPixels, s.worldSize * transform.scale);
-                const r = baseR * 0.4; // 60% más chico
-                const h = r * 1.6; ctx.save(); ctx.globalAlpha = s.opacity;
-                ctx.translate(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.rotate(((geo.rotation + edit.rot) * Math.PI) / 180);
-                const ay = -h;
-                const renderedFromDictionary = renderCTFromDictionary(ct, s, r, isSel, hoveredFeature?.id === ct.id);
-                if (!renderedFromDictionary) {
-                    if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); }
-                    else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
-                }
-                if (transform.scale > 0.08) { ctx.font = `bold ${Math.round(2.5 * transform.scale)}px sans-serif`; ctx.fillStyle = '#334155'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(ct.ni || ct.id), 0, ay * 0.18); }
-                ctx.restore();
-                (ctGroups[mk] || []).forEach(n => {
-                  const nEdit = manualEdits[n.id] || { dx: 0, dy: 0, rot: 0 };
-                  ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath();
-                  ctx.moveTo(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.lineTo(rx(n.x + nEdit.dx), ry(n.y + nEdit.dy));
-                  ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
-                });
-              }
+              try {
+                  const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
+                  if (ct) {
+                    const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
+                    const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
+                    const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
+                    if (onlyShowConnected && !s.isConnected) return;
+                    
+                    (ctGroups[mk] || []).forEach(n => {
+                      const nEdit = manualEdits[n.id] || { dx: 0, dy: 0, rot: 0 };
+                      const cx = rx(ct.x + edit.dx), cy = ry(ct.y + edit.dy);
+                      const nx = rx(n.x + nEdit.dx), ny = ry(n.y + nEdit.dy);
+                      if (!isValidNum(cx) || !isValidNum(cy) || !isValidNum(nx) || !isValidNum(ny)) return;
+
+                      ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath();
+                      ctx.moveTo(cx, cy); 
+                      ctx.lineTo(nx, ny);
+                      ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+                    });
+                  }
+              } catch(e) {}
             });
 
+            // 4. Dibujar todos los nodos base (Suministros, postes normales, etc.)
+            data.elements.forEach(el => {
+                if (![39, 1122, 1123, 1369, 1113, ...CT_CLASSES].includes(el.class)) renderNode(el);
+            });
+
+            // 5. Dibujar los Centros de Transformación (CT) en una capa por encima de la red base
+            data.elements.forEach(el => {
+                if (CT_CLASSES.includes(el.class)) renderNode(el);
+            });
+
+            // 6. Dibujar Pilares, Cajas y Bornes en la capa superior absoluta
             data.elements.forEach(el => {
                 if ([39, 1122, 1123, 1369, 1113].includes(el.class)) renderNode(el);
             });
 
-            if (selectedFeature && isNodeValid(selectedFeature) && !CT_CLASSES.includes(selectedFeature.class)) {
+            if (selectedFeature && isNodeValid(selectedFeature)) {
                 renderNode(selectedFeature, true);
             }
             if (pairedFeatureId) {
                 const pairedEl = data.elements.find(e => String(e.id) === pairedFeatureId);
-                if (pairedEl && isNodeValid(pairedEl) && !CT_CLASSES.includes(pairedEl.class)) {
+                if (pairedEl && isNodeValid(pairedEl)) {
                     renderNode(pairedEl, true);
                 }
             }
 
             terminalsToDraw.forEach(t => {
+                if (!isValidNum(t.x) || !isValidNum(t.y)) return;
                 ctx.beginPath(); 
                 ctx.arc(t.x, t.y, t.r, 0, 2*Math.PI);
                 ctx.fillStyle = '#166534'; ctx.fill();
