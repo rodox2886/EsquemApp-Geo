@@ -775,6 +775,8 @@
                           if (typeof AREANAMES !== "undefined") window.__TEMP_AREANAMES = AREANAMES;
                           if (typeof GRAPHICS !== "undefined") window.__TEMP_GRAPHICS = GRAPHICS;
                           if (typeof ATTRDEFS !== "undefined") window.__TEMP_ATTRDEFS = ATTRDEFS;
+                          if (typeof CROMO_COLORS !== "undefined") window.__TEMP_COLORS = CROMO_COLORS;
+                          if (typeof CUSTOM_LINE !== "undefined") window.__TEMP_CUSTOM_LINE = CUSTOM_LINE;
                       } catch(e) { console.error("Error al inyectar script local", e); }
                   `;
                   document.body.appendChild(script);
@@ -814,10 +816,30 @@
                       }
                       setAttrDictionary(dict);
                   }
+                  if (window.__TEMP_COLORS && window.__TEMP_COLORS.tension) {
+                      let dict = { ...colorDictionary };
+                      for (let k in window.__TEMP_COLORS.tension) {
+                          const def = window.__TEMP_COLORS.tension[k];
+                          if (def && typeof def.value === 'string') { dict[k] = def.value; foundColors++; }
+                      }
+                      setColorDictionary(dict);
+                  }
+                  if (window.__TEMP_CUSTOM_LINE) {
+                      let dict = { ...lineDictionary };
+                      for (let k in window.__TEMP_CUSTOM_LINE) {
+                          const def = window.__TEMP_CUSTOM_LINE[k];
+                          const arr = def?.value;
+                          if (Array.isArray(arr) && arr.every(n => typeof n === 'number' && isFinite(n))) {
+                              dict[k] = arr;
+                              foundLines++;
+                          }
+                      }
+                      setLineDictionary(dict);
+                  }
 
                   // Limpieza
                   document.body.removeChild(script);
-                  delete window.__TEMP_STREETS; delete window.__TEMP_CLASSES; delete window.__TEMP_AREANAMES; delete window.__TEMP_GRAPHICS; delete window.__TEMP_ATTRDEFS;
+                  delete window.__TEMP_STREETS; delete window.__TEMP_CLASSES; delete window.__TEMP_AREANAMES; delete window.__TEMP_GRAPHICS; delete window.__TEMP_ATTRDEFS; delete window.__TEMP_COLORS; delete window.__TEMP_CUSTOM_LINE;
 
               } catch(e) {
                   console.warn("Fallo inyección", e);
@@ -829,6 +851,8 @@
               if (foundAreas > 0) msgParts.push(`${foundAreas} áreas`);
               if (foundGraphics > 0) msgParts.push(`${foundGraphics} gráficos`);
               if (foundAttrs > 0) msgParts.push(`${foundAttrs} atributos`);
+              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
+              if (foundLines > 0) msgParts.push(`${foundLines} tipos de línea`);
               
               if (msgParts.length > 0) {
                   setDictRawData('');
@@ -841,16 +865,20 @@
           const handleDrop = useCallback((e) => {
             e.preventDefault(); setIsDraggingFile(false);
             if (viewMode !== 'map') return;
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const text = ev.target.result;
-                    if (file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/)) {
-                        processDictionaryData(text); setViewMode('input'); 
-                    } else processData(true, text);
-                };
-                reader.readAsText(file);
+            const files = Array.from(e.dataTransfer.files || []);
+            if (files.length > 0) {
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const text = ev.target.result;
+                        if (file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line|model|symbol)/)) {
+                            processDictionaryData(text); setViewMode('input');
+                        } else {
+                            processData(true, text);
+                        }
+                    };
+                    reader.readAsText(file);
+                });
             }
           }, [viewMode, processDictionaryData]);
 
