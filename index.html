@@ -564,8 +564,7 @@
               let sx = 0, sy = 0; bornes.forEach(b => { sx += b.x; sy += b.y; });
               basePos = { x: sx / bornes.length, y: sy / bornes.length };
             }
-            const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
-            let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
+                        let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
             data.elements.forEach(o => {
               if (o.class === 1 && o._stdCoords) {
                 let msx = 0, msy = 0, mcnt = 0;
@@ -577,8 +576,11 @@
             const relX = exportFlipX ? -(blockCenter.x - basePos.x) : (blockCenter.x - basePos.x);
             const relY = exportFlipY ? (blockCenter.y - basePos.y) : -(blockCenter.y - basePos.y);
             const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
-            return { pos: basePos, rotation: (blockAng + 90) % 360 }; // punta del triángulo orientada hacia la manzana
-          }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
+            const vx = blockCenter.x - basePos.x;
+            const vy = blockCenter.y - basePos.y;
+            const ctPos = { x: basePos.x + vx * 0.35, y: basePos.y + vy * 0.35 }; // desplazar CT hacia el interior de manzana
+            return { pos: ctPos, rotation: (blockAng + 90) % 360 };
+          }, [data, exportFlipY, exportFlipX]);
 
           // --- 2. Estilos Visuales ---
           // Motor de Colores por Tensión
@@ -1492,7 +1494,8 @@
                 const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
                 if (onlyShowConnected && !s.isConnected) return;
                 const geo = computeCtOrientation(ct);
-                const r = Math.max(s.minPixels, s.worldSize * transform.scale);
+                const baseR = Math.max(s.minPixels, s.worldSize * transform.scale);
+                const r = baseR * 0.4; // 60% más chico
                 const h = r * 1.6; ctx.save(); ctx.globalAlpha = s.opacity;
                 ctx.translate(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.rotate(((geo.rotation + edit.rot) * Math.PI) / 180);
                 const ay = -h;
