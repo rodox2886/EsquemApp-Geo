@@ -1,4 +1,4 @@
-// 2026/04/15 00:00:30 MetaModel - Archivo generado automaticamente, NO modificar
+// 2026/05/09 00:00:30 MetaModel - Archivo generado automaticamente, NO modificar
 ATTRDEFS = {
 		1: {caption:"[OLD] #NRORAS",categoryId:"1",type:"I",validation:"none" },
 		2: {caption:"[OLD] CAU",categoryId:"1",type:"S",validation:"none" },
@@ -371,7 +371,7 @@ ATTRDEFS = {
 		500: {caption:"Sección completa",categoryId:"1",type:"S",validation:"list" },
 		501: {caption:"Doble terna",categoryId:"1",type:"S",validation:"suggested-list" },
 		502: {caption:"Postación (Altura y tipo)",categoryId:"1",type:"R",validation:"none" },
-		503: {caption:"Fecha de puesta en servicio",categoryId:"1",type:"D",validation:"range" , min:"01/01/1900" , max:"21/04/2026" },
+		503: {caption:"Fecha de puesta en servicio",categoryId:"1",type:"D",validation:"range" , min:"01/01/1900" , max:"15/05/2026" },
 		505: {caption:"Marca",categoryId:"1",type:"S",validation:"none" },
 		507: {caption:"Función del conductor",categoryId:"1",type:"S",validation:"list" },
 		508: {caption:"Acceso",categoryId:"1",type:"S",validation:"list" },
