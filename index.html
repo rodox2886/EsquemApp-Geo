@@ -1169,6 +1169,68 @@
               }
             });
 
+
+            const drawGraphicDefinition = (gDef, s, isSel, isHov, angleRad, baseRadius) => {
+                if (!gDef || !gDef.gs) return false;
+                ctx.save();
+                ctx.rotate(angleRad || 0);
+                const renderScale = (baseRadius / 2.5) * (gDef.scale || 1.0);
+                ctx.scale(renderScale, renderScale);
+                gDef.gs.forEach(g => {
+                    const attr = g.attr || {};
+                    const textContent = attr.text || g.text || attr.textContent || attr.str;
+                    let willStroke = attr.stroke && attr.stroke !== 'none';
+                    let willFill = attr.fill && attr.fill !== 'none';
+                    if (attr.stroke === undefined) willStroke = true;
+                    if (attr.fill === undefined) willFill = false;
+
+                    if (isSel) { ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444'; }
+                    else if (isHov) { ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6'; }
+                    else { ctx.strokeStyle = attr.stroke || s.stroke; ctx.fillStyle = attr.fill || s.fill || '#ffffff'; }
+
+                    ctx.lineWidth = (attr['stroke-width'] || 0.1) * (1 / renderScale) * 2.5;
+                    const originalAlpha = ctx.globalAlpha;
+                    if (attr['fill-opacity'] !== undefined && !isSel && !isHov) ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
+
+                    if (textContent) {
+                        const txtSize = attr['font-size'] || attr.size || 1.5;
+                        const absTxtSize = txtSize * renderScale * 1.5;
+                        ctx.save();
+                        ctx.scale(1/renderScale, 1/renderScale);
+                        ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
+                        if (!isSel && !isHov) ctx.fillStyle = attr.stroke || attr.fill || '#000000';
+                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(textContent, (attr.x || 0) * renderScale, (attr.y || 0) * renderScale);
+                        ctx.restore();
+                    } else if (attr.d || g.type === 5) {
+                        if (attr.d) {
+                            const p = new Path2D(attr.d);
+                            if (willFill) ctx.fill(p);
+                            if (willStroke) ctx.stroke(p);
+                        }
+                    } else if (isValidNum(attr.width) && isValidNum(attr.height)) {
+                        ctx.beginPath(); ctx.rect((attr.x || 0), (attr.y || 0), attr.width, attr.height);
+                        if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                    } else if (isValidNum(attr.r)) {
+                        ctx.beginPath(); ctx.arc(attr.cx || 0, attr.cy || 0, attr.r, 0, 2*Math.PI);
+                        if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                    } else if (isValidNum(attr.x1) && isValidNum(attr.x2)) {
+                        ctx.beginPath(); ctx.moveTo(attr.x1, attr.y1); ctx.lineTo(attr.x2, attr.y2);
+                        if (willStroke) ctx.stroke();
+                    } else if (attr.points) {
+                        const pts = attr.points.trim().split(/\s+|,/).map(Number).filter(n => !isNaN(n));
+                        if (pts.length >= 4) {
+                            ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+                            for (let i = 2; i < pts.length - 1; i += 2) ctx.lineTo(pts[i], pts[i+1]);
+                            if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                        }
+                    }
+                    ctx.globalAlpha = originalAlpha;
+                });
+                ctx.restore();
+                return true;
+            };
+
             const renderNode = (el, isHighlightRender = false) => {
                 if (!showMT && MT_POLE_CLASSES.includes(el.class)) return; 
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
@@ -1217,84 +1279,9 @@
                 
                 graphicIds.forEach(gId => {
                     const gDef = graphicsDictionary[gId];
-                    if (gDef && gDef.gs) {
+                    if (drawGraphicDefinition(gDef, s, isSel, isHov, angleRad, r)) {
                         renderedCustomGraphic = true;
-                        
-                        ctx.save();
-                        ctx.rotate(angleRad);
-                        
-                        const renderScale = (r / 2.5) * (gDef.scale || 1.0);
-                        ctx.scale(renderScale, renderScale);
-
-                        gDef.gs.forEach(g => {
-                            const attr = g.attr || {};
-                            const textContent = attr.text || g.text || attr.textContent || attr.str;
-
-                            let willStroke = attr.stroke && attr.stroke !== 'none';
-                            let willFill = attr.fill && attr.fill !== 'none';
-                            if (attr.stroke === undefined) willStroke = true;
-                            if (attr.fill === undefined) willFill = false;
-
-                            if (isSel) {
-                                ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
-                            } else if (isHov) {
-                                ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6';
-                            } else {
-                                ctx.strokeStyle = attr.stroke || s.stroke;
-                                ctx.fillStyle = attr.fill || s.fill || '#ffffff';
-                            }
-
-                            ctx.lineWidth = (attr['stroke-width'] || 0.1) * (1 / renderScale) * 2.5; 
-                            
-                            const originalAlpha = ctx.globalAlpha;
-                            if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
-                                ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
-                            }
-
-                            if (textContent) {
-                                const txtSize = attr['font-size'] || attr.size || 1.5;
-                                const absTxtSize = txtSize * renderScale * 1.5;
-                                ctx.save();
-                                ctx.scale(1/renderScale, 1/renderScale); 
-                                ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
-                                if (!isSel && !isHov) ctx.fillStyle = attr.stroke || attr.fill || '#000000'; 
-                                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                                ctx.fillText(textContent, (attr.x || 0) * renderScale, (attr.y || 0) * renderScale);
-                                ctx.restore();
-                            } else if (attr.d || g.type === 5) {
-                                if (attr.d) {
-                                    const p = new Path2D(attr.d);
-                                    if (willFill) ctx.fill(p);
-                                    if (willStroke) ctx.stroke(p);
-                                }
-                            } else if (isValidNum(attr.width) && isValidNum(attr.height)) {
-                                ctx.beginPath(); ctx.rect((attr.x || 0), (attr.y || 0), attr.width, attr.height);
-                                if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.r)) {
-                                ctx.beginPath(); ctx.arc(attr.cx || 0, attr.cy || 0, attr.r, 0, 2*Math.PI);
-                                if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
-                            } else if (isValidNum(attr.x1) && isValidNum(attr.x2)) {
-                                ctx.beginPath(); ctx.moveTo(attr.x1, attr.y1); ctx.lineTo(attr.x2, attr.y2);
-                                if (willStroke) ctx.stroke();
-                            } else if (attr.points) {
-                                const pts = attr.points.trim().split(/\s+|,/);
-                                if (pts.length >= 2) {
-                                    ctx.beginPath();
-                                    for (let i = 0; i < pts.length; i += 2) {
-                                        const px = parseFloat(pts[i]), py = parseFloat(pts[i+1]);
-                                        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-                                    }
-                                    if (attr.closed) ctx.closePath();
-                                    if (willFill) ctx.fill();
-                                    if (willStroke) ctx.stroke();
-                                }
-                            }
-                            ctx.globalAlpha = originalAlpha;
-                        });
-                        ctx.restore();
                     }
-                });
-
                 if (!renderedCustomGraphic) {
                     ctx.rotate(angleRad); 
                     if (SUPPLY_CLASSES.includes(el.class)) {
@@ -1425,8 +1412,16 @@
                 const h = r * 1.6; ctx.save(); ctx.globalAlpha = s.opacity;
                 ctx.translate(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.rotate(((geo.rotation + edit.rot) * Math.PI) / 180);
                 const ay = -h;
-                if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); } 
-                else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
+                const ctGraphicIds = ct.gs && ct.gs.length > 0 ? ct.gs : [ct.class];
+                let renderedCT = false;
+                ctGraphicIds.forEach(gId => {
+                    const gDef = graphicsDictionary[gId];
+                    if (!renderedCT && drawGraphicDefinition(gDef, s, isSel, hoveredFeature?.id === ct.id, 0, r)) renderedCT = true;
+                });
+                if (!renderedCT) {
+                    if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); }
+                    else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
+                }
                 if (transform.scale > 0.08) { ctx.font = `bold ${Math.round(2.5 * transform.scale)}px sans-serif`; ctx.fillStyle = '#334155'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(ct.ni || ct.id), 0, ay * 0.18); }
                 ctx.restore();
                 (ctGroups[mk] || []).forEach(n => {
