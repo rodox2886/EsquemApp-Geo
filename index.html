@@ -1169,6 +1169,51 @@
               }
             });
 
+            const renderCTFromDictionary = (ct, s, r, isSel, isHov) => {
+                const ids = (Array.isArray(ct.gs) && ct.gs.length > 0) ? ct.gs : [ct.class];
+                for (const gId of ids) {
+                    const gDef = graphicsDictionary[gId];
+                    if (!gDef || !Array.isArray(gDef.gs)) continue;
+                    const scale = Math.max(0.01, (r / 2.5) * (isValidNum(gDef.scale) ? gDef.scale : 1));
+                    try {
+                        ctx.save();
+                        ctx.scale(scale, scale);
+                        for (const g of gDef.gs) {
+                            const attr = g?.attr || {};
+                            const stroke = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (attr.stroke || s.stroke));
+                            const fill = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (attr.fill || s.fill || '#ffffff'));
+                            const lineW = ((isValidNum(attr['stroke-width']) ? attr['stroke-width'] : 0.1) / scale) * 2.5;
+                            const willStroke = attr.stroke === undefined || attr.stroke !== 'none';
+                            const willFill = attr.fill !== undefined && attr.fill !== 'none';
+                            const oldAlpha = ctx.globalAlpha;
+                            if (isValidNum(attr['fill-opacity']) && !isSel && !isHov) ctx.globalAlpha = oldAlpha * attr['fill-opacity'];
+
+                            ctx.strokeStyle = stroke; ctx.fillStyle = fill; ctx.lineWidth = lineW;
+                            if (attr.d) {
+                                const path = new Path2D(attr.d);
+                                if (willFill) ctx.fill(path);
+                                if (willStroke) ctx.stroke(path);
+                            } else if (isValidNum(attr.x1) && isValidNum(attr.y1) && isValidNum(attr.x2) && isValidNum(attr.y2)) {
+                                ctx.beginPath(); ctx.moveTo(attr.x1, attr.y1); ctx.lineTo(attr.x2, attr.y2); if (willStroke) ctx.stroke();
+                            } else if (isValidNum(attr.r)) {
+                                ctx.beginPath(); ctx.arc(attr.cx || 0, attr.cy || 0, attr.r, 0, 2*Math.PI); if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                            } else if (isValidNum(attr.width) && isValidNum(attr.height)) {
+                                ctx.beginPath(); ctx.rect(attr.x || 0, attr.y || 0, attr.width, attr.height); if (willFill) ctx.fill(); if (willStroke) ctx.stroke();
+                            } else if (attr.points) {
+                                const pts = String(attr.points).trim().split(/\s+|,/).map(Number).filter(n => !isNaN(n));
+                                if (pts.length >= 4) { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length - 1; i += 2) ctx.lineTo(pts[i], pts[i+1]); if (willFill) ctx.fill(); if (willStroke) ctx.stroke(); }
+                            }
+                            ctx.globalAlpha = oldAlpha;
+                        }
+                        ctx.restore();
+                        return true;
+                    } catch (e) {
+                        try { ctx.restore(); } catch (_) {}
+                    }
+                }
+                return false;
+            };
+
             const renderNode = (el, isHighlightRender = false) => {
                 if (!showMT && MT_POLE_CLASSES.includes(el.class)) return; 
                 if (!isNodeValid(el) || CT_CLASSES.includes(el.class)) return;
@@ -1425,8 +1470,11 @@
                 const h = r * 1.6; ctx.save(); ctx.globalAlpha = s.opacity;
                 ctx.translate(rx(geo.pos.x + edit.dx), ry(geo.pos.y + edit.dy)); ctx.rotate(((geo.rotation + edit.rot) * Math.PI) / 180);
                 const ay = -h;
-                if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); } 
-                else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
+                const renderedFromDictionary = renderCTFromDictionary(ct, s, r, isSel, hoveredFeature?.id === ct.id);
+                if (!renderedFromDictionary) {
+                    if (ct.class === 1461 || ct.class === 1186) { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); }
+                    else { ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.lineTo(0, ay); ctx.closePath(); ctx.fillStyle = s.fill; ctx.fill(); }
+                }
                 if (transform.scale > 0.08) { ctx.font = `bold ${Math.round(2.5 * transform.scale)}px sans-serif`; ctx.fillStyle = '#334155'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(ct.ni || ct.id), 0, ay * 0.18); }
                 ctx.restore();
                 (ctGroups[mk] || []).forEach(n => {
