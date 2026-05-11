@@ -573,14 +573,20 @@
                 if (d < minBlockDist) { minBlockDist = d; blockCenter = { x: mcx, y: mcy }; }
               }
             });
+            const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
             const relX = exportFlipX ? -(blockCenter.x - basePos.x) : (blockCenter.x - basePos.x);
             const relY = exportFlipY ? (blockCenter.y - basePos.y) : -(blockCenter.y - basePos.y);
             const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
+            const tipA = (streetAngle + 90 + 360) % 360;
+            const tipB = (streetAngle - 90 + 360) % 360;
+            const angleDiff = (a, b) => { let d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
+            const tipDir = angleDiff(tipA, blockAng) <= angleDiff(tipB, blockAng) ? tipA : tipB;
+            const rotation = (tipDir + 90) % 360; // base paralela a calle, punta hacia manzana
             const vx = blockCenter.x - basePos.x;
             const vy = blockCenter.y - basePos.y;
             const ctPos = { x: basePos.x + vx * 0.35, y: basePos.y + vy * 0.35 }; // desplazar CT hacia el interior de manzana
-            return { pos: ctPos, rotation: (blockAng + 90) % 360 };
-          }, [data, exportFlipY, exportFlipX]);
+            return { pos: ctPos, rotation };
+          }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
 
           // --- 2. Estilos Visuales ---
           // Motor de Colores por Tensión
