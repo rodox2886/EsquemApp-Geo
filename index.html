@@ -577,9 +577,7 @@
             const relX = exportFlipX ? -(blockCenter.x - basePos.x) : (blockCenter.x - basePos.x);
             const relY = exportFlipY ? (blockCenter.y - basePos.y) : -(blockCenter.y - basePos.y);
             const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
-            const angleDiff = (a, b) => { let d = Math.abs((a + 360) % 360 - (b + 360) % 360); return d > 180 ? 360 - d : d; };
-            const norm1 = (streetAngle - 90 + 360) % 360, norm2 = (streetAngle + 90 + 360) % 360;
-            return { pos: basePos, rotation: (angleDiff(norm1, blockAng) < angleDiff(norm2, blockAng) ? norm1 : norm2) + 90 };
+            return { pos: basePos, rotation: (blockAng + 90) % 360 }; // punta del triángulo orientada hacia la manzana
           }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
 
           // --- 2. Estilos Visuales ---
@@ -606,7 +604,7 @@
             const isPotential = el.class === 1373;
             
             if (CT_CLASSES.includes(el.class)) { 
-                fill = '#b45309'; worldSize = 7.1; minPixels = 3.2; 
+                fill = '#b45309'; worldSize = 5.2; minPixels = 2.6; 
             } else {
               if (el.type === 1) fill = stroke;
               if (SUPPLY_CLASSES.includes(el.class)) { 
@@ -1378,7 +1376,8 @@
                       else if (transform.scale > 0.35) {
                         ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, 0); ctx.lineTo(0, r); ctx.stroke();
                         ctx.font = `bold ${Math.round(r * 0.45)}px sans-serif`; ctx.fillStyle = s.isConnected ? s.stroke : '#94a3b8'; ctx.textAlign = 'center';
-                        if (el.alt) ctx.fillText(String(el.alt), 0, -r * 0.45);
+                        const supplyLabel = el.alt ?? el.ni ?? el.num ?? el.id;
+                        if (supplyLabel !== undefined && supplyLabel !== null && String(supplyLabel).trim() !== '') ctx.fillText(String(supplyLabel), 0, -r * 0.45);
                       }
                     } else if ([1122, 1123, 1369].includes(el.class)) {
                         const size = r * 1.2;
