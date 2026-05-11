@@ -754,7 +754,7 @@
             setTransform({ scale: ns || 1, x: w/2 - ((rx1+rx2)/2)*ns, y: h/2 - ((ry1+ry2)/2)*ns });
           }, [showMT]);
 
-          const handleDragOver = useCallback((e) => { e.preventDefault(); if (viewMode === 'map') setIsDraggingFile(true); }, [viewMode]);
+          const handleDragOver = useCallback((e) => { e.preventDefault(); setIsDraggingFile(true); }, []);
           const handleDragLeave = useCallback((e) => { e.preventDefault(); setIsDraggingFile(false); }, []);
 
           // EXTRACTOR DE DICCIONARIOS CON EVALUACIÓN SEGURA
@@ -864,7 +864,6 @@
 
           const handleDrop = useCallback((e) => {
             e.preventDefault(); setIsDraggingFile(false);
-            if (viewMode !== 'map') return;
             const files = Array.from(e.dataTransfer.files || []);
             if (files.length > 0) {
                 files.forEach(file => {
@@ -880,7 +879,7 @@
                     reader.readAsText(file);
                 });
             }
-          }, [viewMode, processDictionaryData]);
+          }, [processDictionaryData, processData]);
 
           const processData = useCallback((isAppend = false, customText = null) => {
             setMessage(null);
