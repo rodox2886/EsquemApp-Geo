@@ -1096,6 +1096,25 @@
             });
 
             const terminalsToDraw = [], nodeLayoutCache = {}; 
+            const getCtTerminalLayout = (terminalEl) => {
+                if (!terminalEl || terminalEl.class !== 1113 || terminalEl.master == null) return null;
+                const cacheKey = String(terminalEl.master);
+                if (!nodeLayoutCache[cacheKey]) {
+                    const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === cacheKey);
+                    const terminals = (ctGroups[cacheKey] || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                    if (!ct || terminals.length === 0) {
+                        nodeLayoutCache[cacheKey] = { ct: null, terminals: [] };
+                    } else {
+                        nodeLayoutCache[cacheKey] = { ct, terminals };
+                    }
+                }
+
+                const cache = nodeLayoutCache[cacheKey];
+                if (!cache.ct) return null;
+                const idx = cache.terminals.findIndex(t => String(t.id) === String(terminalEl.id));
+                if (idx < 0) return null;
+                return { ct: cache.ct, idx, total: cache.terminals.length };
+            };
             const drawnTexts = new Set(); 
 
             const checkAndRegisterText = (text, screenX, screenY, tolerance = 15) => {
@@ -1293,6 +1312,27 @@
                 }
 
                 const r = Math.max(s.minPixels, s.worldSize * transform.scale);
+
+                // Reubicamos bornes asociados a CT para que queden sobre la base del triángulo
+                if (el.class === 1113 && el.master != null) {
+                    const layout = getCtTerminalLayout(el);
+                    if (layout) {
+                        const ctEdit = manualEdits[layout.ct.id] || { dx: 0, dy: 0, rot: 0 };
+                        const cfx = layout.ct.x + (layout.ct._autoDx || 0) + ctEdit.dx;
+                        const cfy = layout.ct.y + (layout.ct._autoDy || 0) + ctEdit.dy;
+                        const csx = rx(cfx), csy = ry(cfy);
+                        if (isValidNum(csx) && isValidNum(csy)) {
+                            const ctAngle = ((computeCtOrientation(layout.ct).rotation + ctEdit.rot) * Math.PI) / 180;
+                            const ux = Math.cos(ctAngle), uy = Math.sin(ctAngle);
+                            const nx = -uy, ny = ux;
+                            const baseOffset = Math.max(11, transform.scale * 3.2);
+                            const baseHalfWidth = Math.max(20, transform.scale * 7.5);
+                            const spread = layout.total > 1 ? ((layout.idx / (layout.total - 1)) - 0.5) : 0;
+                            sx = csx - (ux * baseOffset) + (nx * spread * baseHalfWidth);
+                            sy = csy - (uy * baseOffset) + (ny * spread * baseHalfWidth);
+                        }
+                    }
+                }
                 
                 ctx.save();
                 ctx.globalAlpha = s.opacity;
