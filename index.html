@@ -1095,7 +1095,7 @@
                 }
             });
 
-            const terminalsToDraw = [], nodeLayoutCache = {}; 
+            const terminalsToDraw = []; 
             const drawnTexts = new Set(); 
 
             const checkAndRegisterText = (text, screenX, screenY, tolerance = 15) => {
@@ -1318,6 +1318,28 @@
                     } else {
                         const streetAng = getStreetAngleAt(fx, fy) + edit.rot;
                         angleRad = (streetAng * Math.PI) / 180;
+                    }
+                }
+
+                // Si hay bornes asociados, desplazamos el CT para apoyar su base sobre esos bornes
+                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                    const linkedTerminals = ctGroups[String(el.id)] || [];
+                    if (linkedTerminals.length > 0) {
+                        let bx = 0, by = 0, cnt = 0;
+                        linkedTerminals.forEach(t => {
+                            const tEdit = manualEdits[t.id] || { dx: 0, dy: 0, rot: 0 };
+                            const tx = rx(t.x + tEdit.dx), ty = ry(t.y + tEdit.dy);
+                            if (isValidNum(tx) && isValidNum(ty)) {
+                                bx += tx; by += ty; cnt++;
+                            }
+                        });
+                        if (cnt > 0) {
+                            const cbx = bx / cnt, cby = by / cnt;
+                            const ux = Math.cos(angleRad), uy = Math.sin(angleRad);
+                            const baseOffset = Math.max(11, transform.scale * 3.2);
+                            sx = cbx + (ux * baseOffset);
+                            sy = cby + (uy * baseOffset);
+                        }
                     }
                 }
 
