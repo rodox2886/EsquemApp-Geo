@@ -1,6 +1,41 @@
 function Canvas(d,content) {
     var xlink = 'http://www.w3.org/1999/xlink';
 
+    // Normalización visual de símbolos de centros (opción A)
+    // Permite unificar tamaño sin tocar la geometría base de GRAPHICS.
+    var UNIFORM_CENTER_TRIANGLE = {
+        enabled: false,
+        scale: 0.5,
+        yOffset: 1.35,
+        classScale: {},
+        classYOffset: {},
+        classes: new Set([
+            1182,1183,1184,1185,1186,1187,1188,
+            1254,1255,1256,1257,1258,1259,1260,1261,
+            1271,1272,1273,1274,1275,1276,1277,1278,
+            1279,1280,1281,1282,1283,1284,1285,1286
+        ])
+    };
+
+    var getUniformSymbolTransform = function(classId, baseScale, baseY) {
+        if (!UNIFORM_CENTER_TRIANGLE.enabled) return { scale: baseScale, y: baseY };
+        var normalizedClassId = parseInt(classId, 10);
+        if (!UNIFORM_CENTER_TRIANGLE.classes.has(normalizedClassId)) return { scale: baseScale, y: baseY };
+        var classScale = UNIFORM_CENTER_TRIANGLE.classScale[normalizedClassId] || 1;
+        var classYOffset = UNIFORM_CENTER_TRIANGLE.classYOffset[normalizedClassId] || 0;
+        return {
+            scale: baseScale * UNIFORM_CENTER_TRIANGLE.scale * classScale,
+            y: baseY + UNIFORM_CENTER_TRIANGLE.yOffset + classYOffset
+        };
+    };
+
+    if (typeof window !== 'undefined' && window.CROMO_UNIFORM_CENTER_TRIANGLE) {
+        Object.assign(UNIFORM_CENTER_TRIANGLE, window.CROMO_UNIFORM_CENTER_TRIANGLE);
+        if (Array.isArray(UNIFORM_CENTER_TRIANGLE.classes)) {
+            UNIFORM_CENTER_TRIANGLE.classes = new Set(UNIFORM_CENTER_TRIANGLE.classes.map(function(v){return parseInt(v,10);}));
+        }
+    }
+
     this.parent = get(content); 
     this.width = 0;
     this.height = 0;
@@ -81,6 +116,9 @@ function Canvas(d,content) {
     this.group = function(id,cid,x,y,color,rot,sc,sx,sy) {
         var g = d.createElementNS(this.svgNS,'g');
         if (rot!=undefined && sx!=undefined && sy!=undefined) {
+            var normalized = getUniformSymbolTransform(cid, sc === undefined ? 1 : sc, y);
+            sc = normalized.scale;
+            y = normalized.y;
             if(sc != 0 ){
                sx = sc*sx;
                sy = sc*sy;
@@ -1272,6 +1310,53 @@ function Canvas(d,content) {
 
 var symbologyXML;
 let symboogyUrl =  `${origin}/meta/symbology.xml`;
+
+function normalizeCenterTrianglesInGraphics() {
+	if (typeof GRAPHICS === 'undefined') return;
+	var cfg = (typeof window !== 'undefined' && window.CROMO_UNIFORM_CENTER_TRIANGLE)
+		? Object.assign({ enabled: true, scale: 0.5, yOffset: 1.35, classScale: {}, classYOffset: {} }, window.CROMO_UNIFORM_CENTER_TRIANGLE)
+		: { enabled: true, scale: 0.5, yOffset: 1.35, classScale: {}, classYOffset: {}, classes: [
+			1182,1183,1184,1185,1186,1187,1188,
+			1254,1255,1256,1257,1258,1259,1260,1261,
+			1271,1272,1273,1274,1275,1276,1277,1278,
+			1279,1280,1281,1282,1283,1284,1285,1286
+		] };
+	if (!cfg.enabled) return;
+	var classes = new Set((cfg.classes || []).map(function(v){ return parseInt(v, 10); }));
+	var scaled = function(v, s){ return Number((v * s).toFixed(6)); };
+	var shiftedY = function(v, s, oy){ return Number((v * s + oy).toFixed(6)); };
+
+	classes.forEach(function(classId){
+		var g = GRAPHICS[classId];
+		if (!g || !g.gs) return;
+		var s = (cfg.scale || 1) * (cfg.classScale?.[classId] || 1);
+		var oy = (cfg.yOffset || 0) + (cfg.classYOffset?.[classId] || 0);
+		for (var i=0; i<g.gs.length; i++) {
+			var item = g.gs[i];
+			if (!item.attr) continue;
+			if (item.type === 1) {
+				if (item.attr.x1 !== undefined) item.attr.x1 = scaled(item.attr.x1, s);
+				if (item.attr.y1 !== undefined) item.attr.y1 = shiftedY(item.attr.y1, s, oy);
+				if (item.attr.x2 !== undefined) item.attr.x2 = scaled(item.attr.x2, s);
+				if (item.attr.y2 !== undefined) item.attr.y2 = shiftedY(item.attr.y2, s, oy);
+			} else if (item.type === 2) {
+				if (item.attr.cx !== undefined) item.attr.cx = scaled(item.attr.cx, s);
+				if (item.attr.cy !== undefined) item.attr.cy = shiftedY(item.attr.cy, s, oy);
+				if (item.attr.r !== undefined) item.attr.r = scaled(item.attr.r, s);
+			} else if (item.type === 5 && typeof item.attr.d === 'string') {
+				var idx = 0;
+				item.attr.d = item.attr.d.replace(/-?\d*\.?\d+/g, function(num){
+					var n = parseFloat(num);
+					var out = (idx % 2 === 0) ? scaled(n, s) : shiftedY(n, s, oy);
+					idx++;
+					return String(out);
+				});
+			}
+		}
+	});
+}
+
+normalizeCenterTrianglesInGraphics();
 $.ajax(symboogyUrl)
 .then(response => {
 	symbologyXML = response;
