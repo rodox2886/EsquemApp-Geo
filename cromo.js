@@ -53,7 +53,7 @@ var CromoMap = function(idMap, options){
 	var visualizationModes = [];
 	var visualizationSwitch = [];
 	var filterclasses  = [];
-	var ex_class = {};
+	var ex_class = {1232: true};
 	var map_status = {map_initiliazed: false};
 	var iframe;
 	var recorridosExp = 0;

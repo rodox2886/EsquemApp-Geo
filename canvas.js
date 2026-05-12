@@ -1,6 +1,41 @@
 function Canvas(d,content) {
     var xlink = 'http://www.w3.org/1999/xlink';
 
+    // Normalización visual de símbolos de centros (opción A)
+    // Permite unificar tamaño sin tocar la geometría base de GRAPHICS.
+    var UNIFORM_CENTER_TRIANGLE = {
+        enabled: true,
+        scale: 0.5,
+        yOffset: 1.35,
+        classScale: {},
+        classYOffset: {},
+        classes: new Set([
+            1182,1183,1184,1185,1186,1187,1188,
+            1254,1255,1256,1257,1258,1259,1260,1261,
+            1271,1272,1273,1274,1275,1276,1277,1278,
+            1279,1280,1281,1282,1283,1284,1285,1286
+        ])
+    };
+
+    var getUniformSymbolTransform = function(classId, baseScale, baseY) {
+        if (!UNIFORM_CENTER_TRIANGLE.enabled) return { scale: baseScale, y: baseY };
+        var normalizedClassId = parseInt(classId, 10);
+        if (!UNIFORM_CENTER_TRIANGLE.classes.has(normalizedClassId)) return { scale: baseScale, y: baseY };
+        var classScale = UNIFORM_CENTER_TRIANGLE.classScale[normalizedClassId] || 1;
+        var classYOffset = UNIFORM_CENTER_TRIANGLE.classYOffset[normalizedClassId] || 0;
+        return {
+            scale: baseScale * UNIFORM_CENTER_TRIANGLE.scale * classScale,
+            y: baseY + UNIFORM_CENTER_TRIANGLE.yOffset + classYOffset
+        };
+    };
+
+    if (typeof window !== 'undefined' && window.CROMO_UNIFORM_CENTER_TRIANGLE) {
+        Object.assign(UNIFORM_CENTER_TRIANGLE, window.CROMO_UNIFORM_CENTER_TRIANGLE);
+        if (Array.isArray(UNIFORM_CENTER_TRIANGLE.classes)) {
+            UNIFORM_CENTER_TRIANGLE.classes = new Set(UNIFORM_CENTER_TRIANGLE.classes.map(function(v){return parseInt(v,10);}));
+        }
+    }
+
     this.parent = get(content); 
     this.width = 0;
     this.height = 0;
@@ -81,6 +116,9 @@ function Canvas(d,content) {
     this.group = function(id,cid,x,y,color,rot,sc,sx,sy) {
         var g = d.createElementNS(this.svgNS,'g');
         if (rot!=undefined && sx!=undefined && sy!=undefined) {
+            var normalized = getUniformSymbolTransform(cid, sc === undefined ? 1 : sc, y);
+            sc = normalized.scale;
+            y = normalized.y;
             if(sc != 0 ){
                sx = sc*sx;
                sy = sc*sy;
