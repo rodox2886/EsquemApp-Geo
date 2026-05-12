@@ -5,8 +5,10 @@ function Canvas(d,content) {
     // Permite unificar tamaño sin tocar la geometría base de GRAPHICS.
     var UNIFORM_CENTER_TRIANGLE = {
         enabled: true,
-        scale: 1,
+        scale: 0.5,
+        yOffset: 1.35,
         classScale: {},
+        classYOffset: {},
         classes: new Set([
             1182,1183,1184,1185,1186,1187,1188,
             1254,1255,1256,1257,1258,1259,1260,1261,
@@ -15,12 +17,16 @@ function Canvas(d,content) {
         ])
     };
 
-    var getUniformSymbolScale = function(classId, baseScale) {
-        if (!UNIFORM_CENTER_TRIANGLE.enabled) return baseScale;
+    var getUniformSymbolTransform = function(classId, baseScale, baseY) {
+        if (!UNIFORM_CENTER_TRIANGLE.enabled) return { scale: baseScale, y: baseY };
         var normalizedClassId = parseInt(classId, 10);
-        if (!UNIFORM_CENTER_TRIANGLE.classes.has(normalizedClassId)) return baseScale;
+        if (!UNIFORM_CENTER_TRIANGLE.classes.has(normalizedClassId)) return { scale: baseScale, y: baseY };
         var classScale = UNIFORM_CENTER_TRIANGLE.classScale[normalizedClassId] || 1;
-        return baseScale * UNIFORM_CENTER_TRIANGLE.scale * classScale;
+        var classYOffset = UNIFORM_CENTER_TRIANGLE.classYOffset[normalizedClassId] || 0;
+        return {
+            scale: baseScale * UNIFORM_CENTER_TRIANGLE.scale * classScale,
+            y: baseY + UNIFORM_CENTER_TRIANGLE.yOffset + classYOffset
+        };
     };
 
     if (typeof window !== 'undefined' && window.CROMO_UNIFORM_CENTER_TRIANGLE) {
@@ -110,7 +116,9 @@ function Canvas(d,content) {
     this.group = function(id,cid,x,y,color,rot,sc,sx,sy) {
         var g = d.createElementNS(this.svgNS,'g');
         if (rot!=undefined && sx!=undefined && sy!=undefined) {
-            sc = getUniformSymbolScale(cid, sc === undefined ? 1 : sc);
+            var normalized = getUniformSymbolTransform(cid, sc === undefined ? 1 : sc, y);
+            sc = normalized.scale;
+            y = normalized.y;
             if(sc != 0 ){
                sx = sc*sx;
                sy = sc*sy;
