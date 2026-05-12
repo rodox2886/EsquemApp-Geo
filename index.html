@@ -39,13 +39,17 @@
 
         // IMPORTANTE: Excluimos 16, 3, 1232 y 1170 completamente para que sean invisibles.
         const HIDDEN_CLASSES = [3, 16, 1170, 1232];
-        const CT_CLASSES = [1186, 1183, 1179, 1461];
-        const SUPPLY_CLASSES = [111, 190, 1373];
-        const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 'Puente'];
-        const POLE_CLASSES = [15, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
         
-        const MT_LINE_CLASSES = [1089, 1091];
-        const MT_POLE_CLASSES = [52, 408, 422, 1119];
+        // ¡ACTUALIZADO! Incluimos TODAS las variantes posibles de CT para forzar unificación
+        const CT_CLASSES = [1178, 1179, 1183, 1184, 1185, 1186, 1461];
+        
+        const SUPPLY_CLASSES = [111, 190, 1373, 27];
+        const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 1087, 'Puente']; 
+        const POLE_CLASSES = [15, 37, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
+        
+        // --- RESTITUCIÓN DE CONSTANTES FALTANTES ---
+        const MT_LINE_CLASSES = [1089, 1091, 1087, 1088]; // Cables Media/Alta Tensión
+        const MT_POLE_CLASSES = [52, 408, 422, 1119]; // Postes y elementos exclusivos de Media Tensión
 
         // --- DICCIONARIOS NATIVOS INTEGRADOS ---
         const DEFAULT_CLASSES = {
@@ -53,6 +57,8 @@
             "-2": "Vereda",
             "1": "Manzana",
             "15": "Poste de Madera / H°A°",
+            "27": "Toma I Doble (Subterranea)",
+            "37": "Caja de Entrada y Salida",
             "39": "Caja de Distribución",
             "52": "Puente BT/MT",
             "56": "Caja APR / Fusible",
@@ -67,6 +73,7 @@
             "228": "Poste Doble Perpendicular",
             "408": "Poste MT",
             "422": "Poste MT H°A°",
+            "1087": "Línea Alta Tensión (LAT)",
             "1088": "Cable Subterráneo XLPE",
             "1089": "Línea MT 13.2kV",
             "1091": "Cable Subterráneo MT",
@@ -75,12 +82,16 @@
             "1095": "Línea BT Concéntrica",
             "1096": "Línea BT Sin Datos",
             "1097": "Puente BT",
+            "1098": "Tramo Seco (GBT)",
             "1113": "Borne / Nodo de Conexión",
+            "1116": "Nodo de caja de distribucion",
+            "1119": "Entrada MT de CT",
             "1122": "Pilar Individual",
             "1123": "Pilar Múltiple / Carenciado",
             "1170": "Centro de Transformación (CT)",
             "1179": "Centro de Transformación (CT)",
             "1183": "Centro de Transformación (CT)",
+            "1184": "Centro de Transf. a Nivel",
             "1186": "Centro de Transformación (CT)",
             "1219": "Línea Medianera",
             "1369": "Pilar Doble",
@@ -103,6 +114,12 @@
                     { type: 1, attr: { 'stroke-width': 0.2, stroke: '#272828', x1: 0.0, y1: 0.55, x2: -3.5, y2: 0.55 } },
                     { type: 5, attr: { 'stroke-width': 0.2, stroke: '#272828', d: 'M-3.5,1.05 L-3.5,0 L-3.5,-1.05 L0,-1.05 L0,1.05z', fill: '#272828', 'fill-opacity': 0.1 } }
                 ]
+            },
+            1184: { // Polígono duro por defecto para un CT a Nivel (Triángulo)
+                scale: 1.0,
+                gs: [
+                    { type: 5, attr: { 'stroke-width': 0.5, d: 'M0,4 L-4,-4 L4,-4 Z' } }
+                ]
             }
         };
 
@@ -113,7 +130,8 @@
             "139": { caption: "MT MD Entradas" },
             "140": { caption: "MT Simbolos Varios" },
             "141": { caption: "MT Nodos" },
-            "alt": { caption: "Altura / Cota" }
+            "alt": { caption: "Altura / Cota" },
+            "ni": { caption: "Número Identificador (NI)" }
         };
 
         const HARDCODED_COLORS = {
@@ -232,29 +250,20 @@
                       cx = found.x; cy = found.y;
                   }
 
-                  // [FIX v10.3] Pivot a 'map' primero, luego centrar cuando el canvas exista.
-                  // Antes crasheaba si se buscaba estando en vista 'input' (canvasRef.current = null).
-                  const focusOnFeature = () => {
-                      if (!canvasRef.current) return;
+                  if (cx && cy) {
                       const w = canvasRef.current.clientWidth;
                       const h = canvasRef.current.clientHeight;
-                      if (!w || !h) return;
                       const targetScale = 18; 
                       const rx = getRenderX(cx, exportFlipX);
                       const ry = getRenderY(cy, exportFlipY);
+                      
                       setTransform({
                           scale: targetScale,
                           x: w/2 - (rx * targetScale),
                           y: h/2 - (ry * targetScale)
                       });
-                  };
-
-                  setViewMode('map');
-                  setSearchQuery('');
-
-                  if (cx || cy) {
-                      if (canvasRef.current) focusOnFeature();
-                      else setTimeout(focusOnFeature, 80); // canvas se monta en el siguiente render
+                      setViewMode('map');
+                      setSearchQuery('');
                   }
               } else {
                   setMessage({ text: `No se encontró ningún elemento o calle con el texto "${searchQuery}".`, type: 'error' });
@@ -315,21 +324,6 @@
               });
               return snaps;
           }, [data, getNearestCableEnd, manualEdits]);
-
-          // [FIX v10.3] ctGroups extraído del render useEffect a useMemo:
-          // antes se reconstruía en cada pan/zoom; ahora sólo cuando 'data' cambia.
-          const ctGroups = useMemo(() => {
-              const groups = {};
-              if (!data) return groups;
-              data.elements.forEach(el => {
-                  if (el.class === 1113 && el.master != null) {
-                      const k = String(el.master);
-                      if (!groups[k]) groups[k] = [];
-                      groups[k].push(el);
-                  }
-              });
-              return groups;
-          }, [data]);
 
           const adjMap = useMemo(() => {
             if (!data) return {};
@@ -584,6 +578,28 @@
           const computeCtOrientation = useCallback((el) => {
             if (!data) return { rotation: 0 };
             const basePos = { x: el.x, y: el.y };
+
+            // 1. Atracción Magnética a Bornes: Buscar los bornes asociados (clase 1113) para que la base los mire de frente.
+            let bx = 0, by = 0, bcount = 0;
+            data.elements.forEach(o => {
+                if (o.class === 1113 && String(o.master) === String(el.id)) {
+                    const edit = manualEdits[o.id] || { dx: 0, dy: 0, rot: 0 };
+                    bx += o.x + edit.dx; 
+                    by += o.y + edit.dy; 
+                    bcount++;
+                }
+            });
+
+            if (bcount > 0) {
+                const cbx = bx / bcount, cby = by / bcount;
+                const relX = exportFlipX ? -(cbx - basePos.x) : (cbx - basePos.x);
+                const relY = exportFlipY ? (cby - basePos.y) : -(cby - basePos.y);
+                const angToBornes = Math.atan2(relY, relX) * 180 / Math.PI;
+                // Si rotamos a (angToBornes - 90), la base plana (el "abajo" del triángulo) quedará mirando directo a los bornes.
+                return { rotation: angToBornes - 90 };
+            }
+
+            // 2. Fallback: Orientación clásica calculada por el ángulo de la calle y manzana si no tiene bornes
             const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
             let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
             data.elements.forEach(o => {
@@ -599,14 +615,13 @@
             const blockAng = (Math.atan2(relY, relX) * 180 / Math.PI + 360) % 360;
             const angleDiff = (a, b) => { let d = Math.abs((a + 360) % 360 - (b + 360) % 360); return d > 180 ? 360 - d : d; };
             
-            // Garantizamos matemáticamente que la punta del triángulo mire de frente a la manzana
             const rot1 = streetAngle;
             const rot2 = streetAngle + 180;
             const tipAng1 = rot1 - 90;
             const tipAng2 = rot2 - 90;
             
             return { rotation: (angleDiff(tipAng1, blockAng) < angleDiff(tipAng2, blockAng) ? rot1 : rot2) };
-          }, [data, getStreetAngleAt, exportFlipY, exportFlipX]);
+          }, [data, getStreetAngleAt, exportFlipY, exportFlipX, manualEdits]);
 
           // --- 2. Estilos Visuales ---
           // Motor de Colores por Tensión
@@ -633,9 +648,8 @@
             
             if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
                 fill = '#b45309'; 
-                // AUMENTO DEL 60% al tamaño base anterior
-                worldSize = 4.0; 
-                minPixels = 3.5;  
+                worldSize = 2.0; 
+                minPixels = 2.0;  
             } else {
               if (el.type === 1) fill = stroke;
               if (SUPPLY_CLASSES.includes(el.class)) { 
@@ -871,13 +885,8 @@
                   }
                   if (window.CROMO_COLORS) {
                       let dict = { ...colorDictionary };
-                      // CROMO_COLORS expone los kv dentro de modo.nivelTension.kv (nuevo formato),
-                      // pero el formato viejo era un objeto plano {'0.4': '#fff', ...}. Soportamos ambos.
-                      const cc = window.CROMO_COLORS;
-                      const kvSource = (cc.modo && cc.modo.nivelTension && cc.modo.nivelTension.kv) ? cc.modo.nivelTension.kv : cc;
-                      for (let k in kvSource) {
-                          const v = kvSource[k];
-                          if (typeof v === 'string') { dict[k] = v; foundColors++; }
+                      for (let k in window.CROMO_COLORS) {
+                          if (window.CROMO_COLORS[k]) { dict[k] = window.CROMO_COLORS[k]; foundColors++; }
                       }
                       setColorDictionary(dict);
                   }
@@ -908,10 +917,34 @@
               }
           }, [streetDictionary, classDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
 
-          // [FIX v10.3] processData ahora declarado ANTES de handleDrop para evitar
-          // ReferenceError por TDZ en la deps array de handleDrop. Antes:
-          //   handleDrop ── deps: [..., processData]   ← processData en TDZ
-          //   processData = useCallback(...)            ← se declaraba después
+          const handleDrop = useCallback((e) => {
+            e.preventDefault(); 
+            setIsDraggingFile(false);
+            
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length === 0) return;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const text = ev.target.result;
+                    
+                    // Verificamos si es un diccionario basado en extensión, nombre o contenido clave
+                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
+                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
+                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
+                    
+                    if (isDictFile) {
+                        processDictionaryData(text);
+                        if (viewMode !== 'map') setViewMode('input');
+                    } else {
+                        processData(true, text);
+                    }
+                };
+                reader.readAsText(file);
+            });
+          }, [viewMode, processDictionaryData, processData]);
+
           const processData = useCallback((isAppend = false, customText = null) => {
             setMessage(null);
             try {
@@ -1036,42 +1069,6 @@
             } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
 
-          const handleDrop = useCallback((e) => {
-            e.preventDefault(); 
-            setIsDraggingFile(false);
-            
-            const files = Array.from(e.dataTransfer.files);
-            if (files.length === 0) return;
-
-            // [FIX v10.3] Procesamos archivos en serie para evitar carreras al apilar varios mapas
-            // (cada processData lee 'data' por closure; en paralelo el segundo no veía al primero).
-            const processQueue = async () => {
-                for (const file of files) {
-                    const text = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => resolve(ev.target.result);
-                        reader.onerror = () => reject(reader.error);
-                        reader.readAsText(file);
-                    }).catch(err => { console.warn('No se pudo leer archivo', file.name, err); return null; });
-                    if (!text) continue;
-
-                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
-                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
-                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
-
-                    if (isDictFile) {
-                        processDictionaryData(text);
-                        if (viewMode !== 'map') setViewMode('input');
-                    } else {
-                        processData(true, text);
-                        // Damos un tick para que el setData previo se aplique antes del próximo append
-                        await new Promise(r => setTimeout(r, 0));
-                    }
-                }
-            };
-            processQueue();
-          }, [viewMode, processDictionaryData, processData]);
-
           const isTraceable = selectedFeature ? (NETWORK_CLASSES.includes(selectedFeature.class) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
 
           const getFeatureClassName = (el) => {
@@ -1090,7 +1087,14 @@
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             
-            // [FIX v10.3] ctGroups ahora viene del useMemo de afuera (no se reconstruye en cada repaint).
+            const ctGroups = {};
+            data.elements.forEach(el => {
+                if (el.class === 1113 && el.master != null) {
+                    const k = String(el.master);
+                    if (!ctGroups[k]) ctGroups[k] = []; ctGroups[k].push(el);
+                }
+            });
+
             const terminalsToDraw = [], nodeLayoutCache = {}; 
             const drawnTexts = new Set(); 
 
@@ -1280,11 +1284,7 @@
                 let sx = rx(fx), sy = ry(fy);
                 if (!isValidNum(sx) || !isValidNum(sy)) return;
 
-                let ctRotation = 0;
-
-                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
-                    ctRotation = computeCtOrientation(el).rotation;
-                } else if (el.class === 52) { 
+                if (el.class === 52) { 
                     const snap = getNearestNetworkPoint(fx, fy); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
                 } else if ([1122, 1123, 1369].includes(el.class)) {
@@ -1302,14 +1302,17 @@
                 let rawAngDeg = null;
                 if (el.ang !== undefined) rawAngDeg = el.ang;
 
+                // --- LÓGICA DE ROTACIÓN LIMPIA Y DEFINITIVA ---
                 if (rawAngDeg !== null) {
+                    // 1. Prioridad Absoluta: Si trae 'ang' de la BD, se usa sí o sí.
                     let rotRad = (rawAngDeg * Math.PI) / 180;
                     if (exportFlipY) rotRad = -rotRad;
                     if (exportFlipX) rotRad = Math.PI - rotRad;
                     angleRad = rotRad + (edit.rot * Math.PI) / 180;
                 } else {
+                    // 2. Fallback solo si NO trae ángulo
                     if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
-                        angleRad = ((ctRotation + edit.rot) * Math.PI) / 180;
+                        angleRad = ((computeCtOrientation(el).rotation + edit.rot) * Math.PI) / 180;
                     } else if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
                         angleRad = (edit.rot * Math.PI) / 180;
                     } else {
@@ -1335,9 +1338,11 @@
                         ctx.fillText('P', 0, r * 0.05); 
                     } else if (transform.scale > 0.35) {
                         ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; 
+                        
+                        // Líneas divisorias del círculo (una horizontal en el medio, una vertical abajo)
                         ctx.beginPath(); 
-                        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);
-                        ctx.moveTo(0, 0); ctx.lineTo(0, r);
+                        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);       // Línea horizontal central
+                        ctx.moveTo(0, 0); ctx.lineTo(0, r);       // Línea vertical inferior
                         ctx.stroke();
                         
                         ctx.fillStyle = s.isConnected ? '#334155' : '#64748b'; 
@@ -1345,16 +1350,20 @@
                         
                         ctx.textBaseline = 'bottom';
                         ctx.font = `bold ${Math.max(3, r * 0.6)}px "Segoe UI", sans-serif`;
-                        const topText = String(el.ni || el.name || 'S/N');
+                        const topText = String(el.alt !== undefined ? el.alt : (el.ni || el.name || 'S/N'));
                         ctx.fillText(topText, 0, -r * 0.05);
 
                         ctx.textBaseline = 'top';
                         ctx.font = `${Math.max(2.5, r * 0.45)}px "Segoe UI", sans-serif`;
-                        const blText = String(el.fases !== undefined ? el.fases : (el.f !== undefined ? el.f : '1'));
+                        
+                        // TEXTO INFERIOR IZQUIERDO: Clientes (cc) o Fases
+                        const blText = String(el.cc !== undefined ? el.cc : (el.cl !== undefined ? el.cl : (el.fases !== undefined ? el.fases : (el.f !== undefined ? el.f : '1'))));
                         ctx.fillText(blText, -r * 0.45, r * 0.1);
 
-                        const kwVal = el.kw !== undefined ? el.kw : (el.pot !== undefined ? el.pot : (el.carga !== undefined ? el.carga : (el.alt !== undefined ? el.alt : '')));
-                        if (kwVal !== '') {
+                        // TEXTO INFERIOR DERECHO: Potencia o Carga (pc)
+                        const kwVal = el.pc !== undefined ? el.pc : (el.kw !== undefined ? el.kw : (el.pot !== undefined ? el.pot : (el.carga !== undefined ? el.carga : '')));
+                        // Solo imprimimos si no es vacío y es mayor a cero (evita que el "0" ensucie medidores simples)
+                        if (kwVal !== '' && Number(kwVal) > 0) {
                             ctx.fillText(String(kwVal), r * 0.45, r * 0.1);
                         }
                     }
@@ -1375,8 +1384,22 @@
                         ctx.save();
                         ctx.rotate(angleRad);
                         
-                        const renderScale = (r / 2.0) * (gDef.scale || 1.0);
+                        // NORMALIZACIÓN DE TAMAÑO PARA CTs: 
+                        // Verificamos si la clase principal ES un CT, o si el GRÁFICO (gs) pertenece a la familia CT
+                        const isCTGraphic = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class)) ||
+                                            CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
+                                            
+                        // Si es cualquier tipo de CT, forzamos la escala a 1.0 destruyendo la que trae el diccionario
+                        const graphicScale = isCTGraphic ? 1.0 : (gDef.scale || 1.0);
+                        const renderScale = (r / 2.0) * graphicScale;
+                        
                         ctx.scale(renderScale, -renderScale);
+
+                        // TRASLACIÓN DE ORIGEN PARA CTs: Mueve geométricamente el gráfico para que
+                        // englobe tanto a los bornes como al texto en su interior
+                        if (isCTGraphic) {
+                            ctx.translate(0, -0.35); 
+                        }
 
                         if (gDef.type === 2) {
                             ctx.beginPath();
@@ -1407,8 +1430,9 @@
                                     ctx.strokeStyle = attr.stroke || s.stroke;
                                     ctx.fillStyle = attr.fill || s.fill || '#ffffff';
                                     
-                                    // HOMOGENEIZACIÓN DE COLOR CT: Gris oscuro original en vez de negro puro o rosas de voltaje
-                                    if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                    // HOMOGENEIZACIÓN DE COLOR CT: 
+                                    // Todo lo que sea o parezca un CT se pinta del gris institucional
+                                    if (isCTGraphic) {
                                         ctx.strokeStyle = '#334155';
                                         ctx.fillStyle = '#334155';
                                     }
@@ -1418,7 +1442,7 @@
                                 if (strokeW === undefined) strokeW = willStroke ? 0.1 : 0;
                                 
                                 // BORDES EN NEGRITA PARA CTs
-                                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                if (isCTGraphic) {
                                     ctx.lineWidth = Math.max(1.8 / renderScale, strokeW * (1 / renderScale) * 5.0);
                                 } else {
                                     ctx.lineWidth = Math.max(0.3 / renderScale, strokeW * (1 / renderScale) * 2.5); 
@@ -1451,7 +1475,7 @@
                                         
                                         // Anti-giro para textos embebidos en el diccionario de los CTs
                                         let flipText = false;
-                                        if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                                        if (isCTGraphic) {
                                             let deg = (angleRad * 180) / Math.PI;
                                             deg = ((deg % 360) + 360) % 360;
                                             if (deg > 90 && deg <= 270) flipText = true;
@@ -1463,7 +1487,7 @@
                                         ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
                                         if (!isSel && !isHov) {
                                             ctx.fillStyle = attr.stroke || attr.fill || '#000000';
-                                            if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) ctx.fillStyle = '#334155';
+                                            if (isCTGraphic) ctx.fillStyle = '#334155';
                                         }
                                         
                                         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1573,8 +1597,8 @@
                             ctx.textAlign = 'center'; 
                             ctx.textBaseline = 'middle';
                             
-                            // El texto se posiciona levemente por encima de la base inferior para que encaje perfecto
-                            const offset = r * 0.7;
+                            // Mantenemos el offset profundo pero con la rotación natural
+                            const offset = r * 1.4; 
                             ctx.fillText(String(label), 0, flipped ? offset : -offset);
                             ctx.restore();
                         }
@@ -1615,7 +1639,7 @@
 
             // 4. Dibujar todos los nodos base (Suministros, postes normales, etc.)
             data.elements.forEach(el => {
-                if (![39, 1122, 1123, 1369, 1113, ...CT_CLASSES].includes(el.class)) renderNode(el);
+                if (![37, 39, 1122, 1123, 1369, 1113, 1116, 1119, ...CT_CLASSES].includes(el.class)) renderNode(el);
             });
 
             // 5. Dibujar los Centros de Transformación (CT) en una capa por encima de la red base
@@ -1625,7 +1649,7 @@
 
             // 6. Dibujar Pilares, Cajas y Bornes en la capa superior absoluta
             data.elements.forEach(el => {
-                if ([39, 1122, 1123, 1369, 1113].includes(el.class)) renderNode(el);
+                if ([37, 39, 1122, 1123, 1369, 1113, 1116, 1119].includes(el.class)) renderNode(el);
             });
 
             if (selectedFeature && isNodeValid(selectedFeature)) {
@@ -1646,7 +1670,7 @@
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.3, t.r * 0.25); ctx.stroke();
             });
             
-          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, graphicsDictionary, lineDictionary, ctGroups]);
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, graphicsDictionary, lineDictionary]);
 
           useEffect(() => {
             const c = canvasRef.current; if (!c || viewMode !== 'map') return;
@@ -1660,9 +1684,8 @@
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                       <IconLayers className="text-blue-400 w-4 h-4" />
-                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.3 (Fixes)</h1>
+                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.2 (Limpieza Textos)</h1>
                   </div>
-                  {/* BÚSQUEDA TIPO CROMO.JS */}
                   {data && (
                       <form onSubmit={handleSearch} className="flex items-center">
                           <div className="relative">
