@@ -37,8 +37,9 @@
         const getRenderX = (x, flipX) => flipX ? -x : x;
         const getRenderY = (y, flipY) => flipY ? y : -y;
 
-        // IMPORTANTE: Se elimina la clase 16 y 3 para que NO sean dibujadas como CT (Ocultando los cuadrados)
-        const CT_CLASSES = [1186, 1170, 1232, 1183, 1179, 1461];
+        // IMPORTANTE: Excluimos 16, 3, 1232 y 1170 completamente para que sean invisibles.
+        const HIDDEN_CLASSES = [3, 16, 1170, 1232];
+        const CT_CLASSES = [1186, 1183, 1179, 1461];
         const SUPPLY_CLASSES = [111, 190, 1373];
         const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 'Puente'];
         const POLE_CLASSES = [15, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
@@ -51,9 +52,7 @@
             "-3": "Eje Vial / Sección de Calle",
             "-2": "Vereda",
             "1": "Manzana",
-            "3": "[OLD] Cen. de Tr. a Nivel",
             "15": "Poste de Madera / H°A°",
-            "16": "Centro de Transf. a Nivel",
             "39": "Caja de Distribución",
             "52": "Puente BT/MT",
             "56": "Caja APR / Fusible",
@@ -84,7 +83,6 @@
             "1183": "Centro de Transformación (CT)",
             "1186": "Centro de Transformación (CT)",
             "1219": "Línea Medianera",
-            "1232": "Centro de Transformación (CT)",
             "1369": "Pilar Doble",
             "1373": "Suministro Potencial",
             "1461": "CT Plataforma Monoposte"
@@ -234,20 +232,29 @@
                       cx = found.x; cy = found.y;
                   }
 
-                  if (cx && cy) {
+                  // [FIX v10.3] Pivot a 'map' primero, luego centrar cuando el canvas exista.
+                  // Antes crasheaba si se buscaba estando en vista 'input' (canvasRef.current = null).
+                  const focusOnFeature = () => {
+                      if (!canvasRef.current) return;
                       const w = canvasRef.current.clientWidth;
                       const h = canvasRef.current.clientHeight;
+                      if (!w || !h) return;
                       const targetScale = 18; 
                       const rx = getRenderX(cx, exportFlipX);
                       const ry = getRenderY(cy, exportFlipY);
-                      
                       setTransform({
                           scale: targetScale,
                           x: w/2 - (rx * targetScale),
                           y: h/2 - (ry * targetScale)
                       });
-                      setViewMode('map');
-                      setSearchQuery('');
+                  };
+
+                  setViewMode('map');
+                  setSearchQuery('');
+
+                  if (cx || cy) {
+                      if (canvasRef.current) focusOnFeature();
+                      else setTimeout(focusOnFeature, 80); // canvas se monta en el siguiente render
                   }
               } else {
                   setMessage({ text: `No se encontró ningún elemento o calle con el texto "${searchQuery}".`, type: 'error' });
@@ -308,6 +315,21 @@
               });
               return snaps;
           }, [data, getNearestCableEnd, manualEdits]);
+
+          // [FIX v10.3] ctGroups extraído del render useEffect a useMemo:
+          // antes se reconstruía en cada pan/zoom; ahora sólo cuando 'data' cambia.
+          const ctGroups = useMemo(() => {
+              const groups = {};
+              if (!data) return groups;
+              data.elements.forEach(el => {
+                  if (el.class === 1113 && el.master != null) {
+                      const k = String(el.master);
+                      if (!groups[k]) groups[k] = [];
+                      groups[k].push(el);
+                  }
+              });
+              return groups;
+          }, [data]);
 
           const adjMap = useMemo(() => {
             if (!data) return {};
@@ -611,7 +633,7 @@
             
             if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
                 fill = '#b45309'; 
-                // AUMENTO DEL 60% al tamaño base anterior de 2.47
+                // AUMENTO DEL 60% al tamaño base anterior
                 worldSize = 4.0; 
                 minPixels = 3.5;  
             } else {
@@ -849,8 +871,13 @@
                   }
                   if (window.CROMO_COLORS) {
                       let dict = { ...colorDictionary };
-                      for (let k in window.CROMO_COLORS) {
-                          if (window.CROMO_COLORS[k]) { dict[k] = window.CROMO_COLORS[k]; foundColors++; }
+                      // CROMO_COLORS expone los kv dentro de modo.nivelTension.kv (nuevo formato),
+                      // pero el formato viejo era un objeto plano {'0.4': '#fff', ...}. Soportamos ambos.
+                      const cc = window.CROMO_COLORS;
+                      const kvSource = (cc.modo && cc.modo.nivelTension && cc.modo.nivelTension.kv) ? cc.modo.nivelTension.kv : cc;
+                      for (let k in kvSource) {
+                          const v = kvSource[k];
+                          if (typeof v === 'string') { dict[k] = v; foundColors++; }
                       }
                       setColorDictionary(dict);
                   }
@@ -881,34 +908,10 @@
               }
           }, [streetDictionary, classDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
 
-          const handleDrop = useCallback((e) => {
-            e.preventDefault(); 
-            setIsDraggingFile(false);
-            
-            const files = Array.from(e.dataTransfer.files);
-            if (files.length === 0) return;
-
-            files.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const text = ev.target.result;
-                    
-                    // Verificamos si es un diccionario basado en extensión, nombre o contenido clave
-                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
-                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
-                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
-                    
-                    if (isDictFile) {
-                        processDictionaryData(text);
-                        if (viewMode !== 'map') setViewMode('input');
-                    } else {
-                        processData(true, text);
-                    }
-                };
-                reader.readAsText(file);
-            });
-          }, [viewMode, processDictionaryData, processData]);
-
+          // [FIX v10.3] processData ahora declarado ANTES de handleDrop para evitar
+          // ReferenceError por TDZ en la deps array de handleDrop. Antes:
+          //   handleDrop ── deps: [..., processData]   ← processData en TDZ
+          //   processData = useCallback(...)            ← se declaraba después
           const processData = useCallback((isAppend = false, customText = null) => {
             setMessage(null);
             try {
@@ -1033,6 +1036,42 @@
             } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
 
+          const handleDrop = useCallback((e) => {
+            e.preventDefault(); 
+            setIsDraggingFile(false);
+            
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length === 0) return;
+
+            // [FIX v10.3] Procesamos archivos en serie para evitar carreras al apilar varios mapas
+            // (cada processData lee 'data' por closure; en paralelo el segundo no veía al primero).
+            const processQueue = async () => {
+                for (const file of files) {
+                    const text = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => resolve(ev.target.result);
+                        reader.onerror = () => reject(reader.error);
+                        reader.readAsText(file);
+                    }).catch(err => { console.warn('No se pudo leer archivo', file.name, err); return null; });
+                    if (!text) continue;
+
+                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
+                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
+                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
+
+                    if (isDictFile) {
+                        processDictionaryData(text);
+                        if (viewMode !== 'map') setViewMode('input');
+                    } else {
+                        processData(true, text);
+                        // Damos un tick para que el setData previo se aplique antes del próximo append
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+            };
+            processQueue();
+          }, [viewMode, processDictionaryData, processData]);
+
           const isTraceable = selectedFeature ? (NETWORK_CLASSES.includes(selectedFeature.class) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
 
           const getFeatureClassName = (el) => {
@@ -1051,14 +1090,7 @@
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             
-            const ctGroups = {};
-            data.elements.forEach(el => {
-                if (el.class === 1113 && el.master != null) {
-                    const k = String(el.master);
-                    if (!ctGroups[k]) ctGroups[k] = []; ctGroups[k].push(el);
-                }
-            });
-
+            // [FIX v10.3] ctGroups ahora viene del useMemo de afuera (no se reconstruye en cada repaint).
             const terminalsToDraw = [], nodeLayoutCache = {}; 
             const drawnTexts = new Set(); 
 
@@ -1072,9 +1104,8 @@
             // 1. CAPA BASE Y CALLES: Fondo (Manzanas y Ejes viales)
             data.elements.forEach(el => {
               try {
-                  const cIdStr = String(el.class);
-                  // Ignorar los Transformadores a nivel en la capa base por si tienen coordenadas.
-                  if (cIdStr === '16' || cIdStr === '3') return; 
+                  // Ignorar las clases ocultas completamente en la capa base
+                  if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return; 
 
                   if (el._stdCoords) {
                       if (el.class === 1 || el.class === 1219) {
@@ -1224,12 +1255,8 @@
 
             const renderNode = (el, isHighlightRender = false) => {
               try {
-                const cIdStr = String(el.class);
-                
-                // --- REGLA ABSOLUTA: OCULTAR TRANSFORMADORES (No dibujar) ---
-                if (cIdStr === '16' || cIdStr === '3') return;
-                const desc = classDictionary[el.class] ? String(classDictionary[el.class]).toUpperCase() : '';
-                if (desc.includes('TRANSFORMADOR') && !CT_CLASSES.includes(el.class) && !CT_CLASSES.includes(Number(el.class))) return;
+                // --- REGLA ABSOLUTA 0: NO DIBUJAR NINGUNA CLASE OCULTA ---
+                if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return;
                 
                 if (!showMT && (MT_POLE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(Number(el.class)))) return; 
                 if (!isNodeValid(el)) return;
@@ -1242,6 +1269,14 @@
                 const s = getElementStyle(el, isSel, isHov);
                 if (onlyShowConnected && !s.isConnected) return;
                 
+                // Bloque para evitar que los bornes 1113 asociados a las clases invisibles se pinten como circulos rosas/sueltos
+                if (el.class === 1113 && el.master != null) {
+                    const masterEl = data.elements.find(m => String(m.id) === String(el.master));
+                    if (masterEl) {
+                        if (HIDDEN_CLASSES.includes(masterEl.class) || HIDDEN_CLASSES.includes(Number(masterEl.class))) return;
+                    }
+                }
+
                 let sx = rx(fx), sy = ry(fy);
                 if (!isValidNum(sx) || !isValidNum(sy)) return;
 
@@ -1284,7 +1319,7 @@
                 }
 
                 // ==========================================
-                // REGLA ABSOLUTA 2: SUMINISTROS (MEDIDORES)
+                // REGLA ABSOLUTA 1: SUMINISTROS (MEDIDORES)
                 // ==========================================
                 if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
                     ctx.rotate(angleRad);
@@ -1329,17 +1364,14 @@
                 }
 
                 // ==========================================
-                // DICCIONARIOS Y ELEMENTOS REGULARES (CTs Triángulos, Postes, etc.)
+                // DICCIONARIOS Y ELEMENTOS REGULARES (Postes, Transformadores 1461, etc.)
                 // ==========================================
                 let graphicIds = el.gs && el.gs.length > 0 ? el.gs : [el.class];
-                let renderedCustomGraphic = false;
                 
                 graphicIds.forEach(gId => {
                     const gDef = typeof gId === 'object' ? { type: 1, gs: [gId] } : graphicsDictionary[gId];
                     
                     if (gDef && (gDef.gs || gDef.type === 2)) {
-                        renderedCustomGraphic = true;
-                        
                         ctx.save();
                         ctx.rotate(angleRad);
                         
@@ -1375,10 +1407,10 @@
                                     ctx.strokeStyle = attr.stroke || s.stroke;
                                     ctx.fillStyle = attr.fill || s.fill || '#ffffff';
                                     
-                                    // HOMOGENEIZACIÓN DE COLOR CT: Gris oscuro original en vez de negro puro
+                                    // HOMOGENEIZACIÓN DE COLOR CT: Gris oscuro original en vez de negro puro o rosas de voltaje
                                     if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
-                                        if (ctx.strokeStyle === '#000000' || ctx.strokeStyle === '#1e293b') ctx.strokeStyle = '#334155';
-                                        if (ctx.fillStyle === '#000000' || ctx.fillStyle === '#1e293b') ctx.fillStyle = '#334155';
+                                        ctx.strokeStyle = '#334155';
+                                        ctx.fillStyle = '#334155';
                                     }
                                 }
 
@@ -1431,7 +1463,7 @@
                                         ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
                                         if (!isSel && !isHov) {
                                             ctx.fillStyle = attr.stroke || attr.fill || '#000000';
-                                            if ((CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) && (ctx.fillStyle === '#000000' || ctx.fillStyle === '#1e293b')) ctx.fillStyle = '#334155';
+                                            if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) ctx.fillStyle = '#334155';
                                         }
                                         
                                         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1468,69 +1500,6 @@
                     }
                 });
 
-                if (!renderedCustomGraphic) {
-                    ctx.rotate(angleRad); 
-                    
-                    if ([1122, 1123, 1369].includes(el.class)) {
-                        const size = r * 1.2;
-                        let rectX = -size / 2, rectY = -size / 2;
-                        
-                        let fillStyle = el.class === 1123 ? '#4b5563' : (el.color === 3 ? '#f59e0b' : (el.color === 6 ? '#ef4444' : (el.color === 2 ? '#3b82f6' : (el.color === 4 ? '#22c55e' : '#ffffff')))); 
-                        let strokeStyle = s.stroke;
-                        if (fillStyle !== '#ffffff' && fillStyle !== '#4b5563') {
-                            if (el.color === 3) strokeStyle = '#b45309';
-                            if (el.color === 6) strokeStyle = '#991b1b';
-                            if (el.color === 2) strokeStyle = '#1e3a8a';
-                            if (el.color === 4) strokeStyle = '#14532d';
-                        }
-                        if (isSel) strokeStyle = '#ef4444'; else if (isHov) strokeStyle = '#3b82f6';
-
-                        ctx.fillStyle = fillStyle; ctx.strokeStyle = strokeStyle; ctx.lineWidth = 1.2;
-                        ctx.beginPath();
-                        if (el.class === 1369) {
-                            const gap = size * 0.3, bcx = rectX + size / 2, bcy = rectY + size / 2;
-                            ctx.rect(bcx - size - gap/2, rectY, size, size); ctx.rect(bcx + gap/2, rectY, size, size);
-                            ctx.fill(); ctx.stroke();
-                            ctx.beginPath(); ctx.arc(bcx, bcy, size * 0.15, 0, 2*Math.PI);
-                            ctx.fillStyle = strokeStyle; ctx.fill();
-                        } else { ctx.rect(rectX, rectY, size, size); ctx.fill(); ctx.stroke(); }
-                    } else if (el.class === 39) {
-                        const w = r * 2, h = r * 1.2; 
-                        ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h);
-                        ctx.fillStyle = '#e2b48d'; ctx.fill(); ctx.strokeStyle = '#92400e'; ctx.lineWidth = 1.8; ctx.stroke();
-                    } else if (el.class === 52) {
-                        ctx.strokeStyle = s.stroke; ctx.lineCap = 'round';
-                        const barWidth = Math.max(1.4, r * 0.22), barHeight = r * 0.85, barOffset = r * 0.45;
-                        ctx.lineWidth = s.isConnected ? 2.2 : 1.4; ctx.beginPath(); ctx.moveTo(-r * 1.5, 0); ctx.lineTo(r * 1.5, 0); ctx.stroke();
-                        ctx.lineWidth = barWidth; ctx.beginPath(); ctx.moveTo(-barOffset, -barHeight); ctx.lineTo(-barOffset, barHeight); ctx.moveTo(barOffset, -barHeight); ctx.lineTo(barOffset, barHeight); ctx.stroke();
-                        ctx.lineWidth = Math.max(0.6, r * 0.10); ctx.beginPath(); ctx.arc(0, 0, r * 0.95, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
-                        ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; const connRadius = r * 0.22; ctx.beginPath(); ctx.arc(-r, 0, connRadius, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.arc(r, 0, connRadius, 0, 2 * Math.PI); ctx.fill();
-                    } else {
-                        ctx.lineWidth = 1.8; const pr = r * 0.8;
-                        if (el.class === 64) { 
-                            ctx.lineWidth = Math.max(0.4, pr * 0.20); ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke(); 
-                            ctx.beginPath(); ctx.moveTo(-pr, 0); ctx.lineTo(pr, 0); ctx.moveTo(0, -pr); ctx.lineTo(0, pr); ctx.stroke(); 
-                        } else if (el.class === 65) { 
-                            ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.lineWidth = Math.max(1.5, pr * 0.15); ctx.strokeStyle = s.stroke; ctx.stroke(); 
-                            ctx.beginPath(); ctx.moveTo(0, -pr); ctx.lineTo(0, pr); ctx.lineWidth = pr * 0.15; ctx.stroke(); 
-                        } else if (el.class === 74) {
-                            ctx.lineWidth = Math.max(1.5, pr * 0.15); ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke();
-                        } else if (el.class === 75) {
-                            ctx.lineWidth = Math.max(0.5, pr * 0.15); ctx.strokeStyle = s.stroke;
-                            const tipX = pr * 1.8, headSize = pr * 0.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tipX, 0); ctx.stroke();
-                            ctx.beginPath(); ctx.moveTo(tipX, 0); ctx.lineTo(tipX - headSize, -headSize * 0.6); ctx.lineTo(tipX - headSize, headSize * 0.6); ctx.closePath(); ctx.fillStyle = '#d1d5db'; ctx.fill(); ctx.stroke();
-                        } else if (el.class === 81) {
-                            ctx.lineWidth = Math.max(0.5, pr * 0.15); ctx.strokeStyle = s.stroke;
-                            const tipX = pr, tailX = pr * 2.5, headSize = pr * 0.5; ctx.beginPath(); ctx.moveTo(tailX, 0); ctx.lineTo(tipX, 0); ctx.stroke();
-                            ctx.beginPath(); ctx.moveTo(tipX, 0); ctx.lineTo(tipX + headSize, -headSize * 0.6); ctx.lineTo(tipX + headSize, headSize * 0.6); ctx.closePath(); ctx.fillStyle = '#d1d5db'; ctx.fill(); ctx.stroke();
-                        } else if (el.class === 98 || el.class === 15) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, 2 * Math.PI); ctx.strokeStyle = s.stroke; ctx.stroke(); } 
-                        else if (el.class === 228) { ctx.beginPath(); ctx.arc(0, 0, pr, 0, 2 * Math.PI); ctx.fillStyle = s.stroke; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); } 
-                        else if (el.class === 422 || el.class === 408) { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 2 * Math.PI); ctx.fillStyle = s.stroke; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.stroke(); } 
-                        else if (el.class === 1113) { ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, 2*Math.PI); ctx.fillStyle = s.isConnected ? s.stroke : '#cbd5e1'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.3; ctx.stroke(); } 
-                        else { ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI); ctx.fillStyle = s.fill || '#ffffff'; ctx.fill(); ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; ctx.stroke(); }
-                    }
-                }
-                
                 ctx.restore(); 
 
                 // Textos Embebidos (Solo para postes, cajas y otros. CTs y Suministros se filtraron arriba)
@@ -1573,8 +1542,45 @@
                     });
                 }
 
+                // Renderizado Explicito Inteligente de NI (Identificadores) para CTs 
+                const isCT = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class));
+                if (isCT) {
+                    let alreadyDrawn = false;
+                    if (el.text && Array.isArray(el.text)) {
+                        const labelStr = String(el.ni || el.name || el.id);
+                        alreadyDrawn = el.text.some(t => t && String(t.str || t.text || t.val).includes(labelStr));
+                    }
+
+                    if (!alreadyDrawn) {
+                        const label = el.ni !== undefined ? el.ni : (el.name !== undefined ? el.name : (isCT ? el.id : null));
+                        if (label) {
+                            ctx.save();
+                            ctx.translate(sx, sy);
+
+                            // Ajuste inteligente: el texto rota junto con la base del triángulo pero evitando quedar boca abajo
+                            let textAng = angleRad;
+                            let deg = (textAng * 180) / Math.PI;
+                            deg = ((deg % 360) + 360) % 360;
+                            let flipped = false;
+                            if (deg > 90 && deg <= 270) {
+                                textAng += Math.PI;
+                                flipped = true;
+                            }
+
+                            ctx.rotate(textAng);
+                            ctx.font = `600 ${Math.max(6, 1.8 * transform.scale)}px "Segoe UI", Arial, sans-serif`;
+                            ctx.fillStyle = s.isConnected ? '#334155' : '#64748b';
+                            ctx.textAlign = 'center'; 
+                            ctx.textBaseline = 'middle';
+                            
+                            // El texto se posiciona levemente por encima de la base inferior para que encaje perfecto
+                            const offset = r * 0.7;
+                            ctx.fillText(String(label), 0, flipped ? offset : -offset);
+                            ctx.restore();
+                        }
+                    }
+                }
               } catch(err) {
-                  // Fallback de seguridad estricto para evitar bloqueos del render principal
                   console.warn("Fallo menor al renderizar un nodo", el, err);
               }
             };
@@ -1584,6 +1590,9 @@
               try {
                   const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
                   if (ct) {
+                    // Ocultamos las líneas de las clases excluidas
+                    if (HIDDEN_CLASSES.includes(ct.class) || HIDDEN_CLASSES.includes(Number(ct.class))) return;
+
                     const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
                     const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
                     const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
@@ -1637,7 +1646,7 @@
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.3, t.r * 0.25); ctx.stroke();
             });
             
-          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, graphicsDictionary, lineDictionary]);
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, graphicsDictionary, lineDictionary, ctGroups]);
 
           useEffect(() => {
             const c = canvasRef.current; if (!c || viewMode !== 'map') return;
@@ -1651,7 +1660,7 @@
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                       <IconLayers className="text-blue-400 w-4 h-4" />
-                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.2 (Limpieza Textos)</h1>
+                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.3 (Fixes)</h1>
                   </div>
                   {/* BÚSQUEDA TIPO CROMO.JS */}
                   {data && (
