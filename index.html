@@ -236,6 +236,7 @@
           const [rawData, setRawData] = useState('');
           const [data, setData] = useState(null);
           const [connectedIds, setConnectedIds] = useState(new Set());
+          const [pendingConnectedIds, setPendingConnectedIds] = useState(null);
           const [message, setMessage] = useState(null); 
           const [selectedFeature, setSelectedFeature] = useState(null);
           const [isToolPanelOpen, setIsToolPanelOpen] = useState(true);
@@ -1027,6 +1028,36 @@
             try {
               let text = (customText !== null ? customText : rawData).trim(); 
               if (!text) return;
+
+              // Soporte rápido para archivos de recorrido/conectados (sin eval de JS pesado)
+              if (/\bRECT\s*=/.test(text)) {
+                  const ids = [];
+                  const re = /(\d+)\s*:\s*\{\s*idx\s*:\s*[-\d.]+\s*,\s*p\s*:\s*\[/g;
+                  let m;
+                  while ((m = re.exec(text)) !== null) ids.push(String(m[1]));
+                  const uniqueIds = Array.from(new Set(ids));
+                  if (uniqueIds.length > 0) {
+                      setHighlightConnected(true);
+                      setOnlyShowConnected(true);
+                      if (data && data.elements && data.elements.length > 0) {
+                          setConnectedIds(new Set(uniqueIds));
+                          const existingIds = new Set(data.elements.map(e => String(e.id)));
+                          const matched = uniqueIds.filter(id => existingIds.has(id)).length;
+                          const missing = uniqueIds.length - matched;
+                          setMessage({
+                              text: matched > 0
+                                  ? `Conectados cargados: ${matched}/${uniqueIds.length} IDs encontrados.${missing > 0 ? ` (${missing} no encontrados)` : ''}`
+                                  : `Se detectó connected (${uniqueIds.length} IDs) sin coincidencias con el mapa actual.`,
+                              type: matched > 0 ? 'success' : 'error'
+                          });
+                          setViewMode('map');
+                      } else {
+                          setPendingConnectedIds(uniqueIds);
+                          setMessage({ text: `Connected detectado (${uniqueIds.length} IDs). Se aplicará al cargar el mapa.`, type: 'success' });
+                      }
+                      return;
+                  }
+              }
               
               if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
@@ -1134,6 +1165,20 @@
               setMessage({ text: 'Mapa cargado correctamente.', type: 'success' });
             } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
+
+          useEffect(() => {
+              if (!pendingConnectedIds || !data || !data.elements || data.elements.length === 0) return;
+              setConnectedIds(new Set(pendingConnectedIds));
+              setHighlightConnected(true);
+              setOnlyShowConnected(true);
+              const existingIds = new Set(data.elements.map(e => String(e.id)));
+              const matched = pendingConnectedIds.filter(id => existingIds.has(id)).length;
+              setMessage({
+                  text: `Connected aplicado al mapa: ${matched}/${pendingConnectedIds.length} IDs coinciden.`,
+                  type: matched > 0 ? 'success' : 'error'
+              });
+              setPendingConnectedIds(null);
+          }, [pendingConnectedIds, data]);
 
           const isTraceable = selectedFeature ? (checkIsCable(selectedFeature) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
 
