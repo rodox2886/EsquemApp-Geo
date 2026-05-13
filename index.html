@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor GIS Profesional</title>
+
+    <!-- AUTO-CARGA DE DICCIONARIOS: Coloca los archivos .js en la misma carpeta que este HTML -->
+    <!-- Se cargarán silenciosamente al inicio. Si no existen, el visor seguirá funcionando con normalidad. -->
+    <script src="classes.js" onerror="console.warn('classes.js no encontrado, se usará modo basico')"></script>
+    <script src="streets.js" onerror="console.warn('streets.js no encontrado, se usará modo basico')"></script>
+    <script src="areas.js" onerror="console.warn('areas.js no encontrado, se usará modo basico')"></script>
+    <script src="graphics1.js" onerror="console.warn('graphics1.js no encontrado, se usará modo basico')"></script>
     
     <!-- Librerías de React y Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -263,6 +270,120 @@
           const [lineDictionary, setLineDictionary] = useState(HARDCODED_LINES);
           
           const [dictRawData, setDictRawData] = useState('');
+
+          const loadDictionariesFromWindow = useCallback((isAutoLoad = false) => {
+              let foundStreets = 0, foundClasses = 0, foundAreas = 0, foundGraphics = 0, foundAttrs = 0, foundColors = 0, foundLines = 0;
+
+              if (window.STREETS) {
+                  const newStreets = window.STREETS;
+                  setStreetDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newStreets) {
+                          if (newStreets[k] && newStreets[k].name) { dict[k] = newStreets[k].name; foundStreets++; }
+                      }
+                      return dict;
+                  });
+                  delete window.STREETS;
+              }
+
+              if (window.CLASSES) {
+                  const newClasses = window.CLASSES;
+                  setClassDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newClasses) { if (newClasses[k] && newClasses[k].description) dict[k] = newClasses[k].description; }
+                      return dict;
+                  });
+                  setClassDefDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newClasses) { if (newClasses[k]) { dict[k] = newClasses[k]; foundClasses++; } }
+                      return dict;
+                  });
+                  delete window.CLASSES;
+              }
+
+              if (window.AREANAMES) {
+                  const newAreas = window.AREANAMES;
+                  setAreaDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newAreas) { if (newAreas[k] && newAreas[k].name) { dict[k] = newAreas[k].name; foundAreas++; } }
+                      return dict;
+                  });
+                  delete window.AREANAMES;
+              }
+
+              if (window.GRAPHICS) {
+                  const newGraphics = window.GRAPHICS;
+                  setGraphicsDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newGraphics) { if (newGraphics[k]) { dict[k] = newGraphics[k]; foundGraphics++; } }
+                      return dict;
+                  });
+                  delete window.GRAPHICS;
+              }
+
+              if (window.ATTRDEFS) {
+                  const newAttrs = window.ATTRDEFS;
+                  setAttrDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newAttrs) { if (newAttrs[k] && newAttrs[k].caption) { dict[k] = newAttrs[k].caption; foundAttrs++; } }
+                      return dict;
+                  });
+                  delete window.ATTRDEFS;
+              }
+
+              if (window.CUSTOM_LINE) {
+                  const newLines = window.CUSTOM_LINE;
+                  setLineDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in newLines) { if (newLines[k] && newLines[k].value) { dict[k] = newLines[k].value; foundLines++; } }
+                      return dict;
+                  });
+                  delete window.CUSTOM_LINE;
+              }
+
+              if (window.CROMO_COLORS) {
+                  const newColors = window.CROMO_COLORS;
+                  setColorDictionary(prev => {
+                      let dict = { ...prev };
+                      if (newColors.nivelTension && newColors.nivelTension.kv) {
+                          for (let k in newColors.nivelTension.kv) { dict[k] = newColors.nivelTension.kv[k]; foundColors++; }
+                      }
+                      const catSalidas = ['salida', 'alimentador', 'trafoMt', 'trafoBt'];
+                      catSalidas.forEach(tipo => {
+                          if (newColors[tipo] && newColors[tipo].colors) {
+                              for (let k in newColors[tipo].colors) {
+                                  const cObj = newColors[tipo].colors[k];
+                                  dict['salida_' + k] = typeof cObj === 'string' ? cObj : (cObj.color || cObj.colorHex);
+                                  foundColors++;
+                              }
+                          }
+                      });
+                      return dict;
+                  });
+                  delete window.CROMO_COLORS;
+              }
+
+              let msgParts = [];
+              if (foundStreets > 0) msgParts.push(`${foundStreets} calles`);
+              if (foundClasses > 0) msgParts.push(`${foundClasses} clases`);
+              if (foundAreas > 0) msgParts.push(`${foundAreas} áreas`);
+              if (foundGraphics > 0) msgParts.push(`${foundGraphics} gráficos`);
+              if (foundAttrs > 0) msgParts.push(`${foundAttrs} atributos`);
+              if (foundLines > 0) msgParts.push(`${foundLines} tipos de línea`);
+              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
+
+              if (msgParts.length > 0) {
+                  setDictRawData('');
+                  setMessage({ text: `¡Diccionarios ${isAutoLoad ? 'auto-cargados al inicio' : 'cargados'}! El visor aprendió: ${msgParts.join(', ')}.`, type: 'success' });
+              } else if (!isAutoLoad) {
+                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios o formatos soportados.', type: 'error' });
+              }
+          }, []);
+
+          // Auto-cargar diccionarios al iniciar la app
+          useEffect(() => {
+              loadDictionariesFromWindow(true);
+          }, [loadDictionariesFromWindow]);
 
           const checkIsCable = useCallback((el) => {
               if (!el) return false;
@@ -662,7 +783,7 @@
             } else {
               if (el.type === 1) fill = stroke;
               if (SUPPLY_CLASSES.includes(el.class)) { 
-                  worldSize = 2.7; minPixels = 1.5; 
+                  worldSize = 2.3; minPixels = 1; 
                   fill = isPotential ? 'rgba(255, 255, 255, 0.5)' : '#f5f5f5'; 
                   stroke = '#a3a3a3'; 
               } else if (el.class === 1113) { 
@@ -837,115 +958,17 @@
           const processDictionaryData = useCallback((text) => {
               setMessage(null);
               if (!text || !text.trim()) return;
-              
-              let foundStreets = 0, foundClasses = 0, foundAreas = 0, foundGraphics = 0, foundAttrs = 0, foundColors = 0, foundLines = 0;
 
               try {
                   const safeText = text.replace(/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/g, 'window.$1 =');
                   const executeScript = new Function(safeText);
                   executeScript();
-
-                  if (window.STREETS) {
-                      let dict = { ...streetDictionary };
-                      for (let k in window.STREETS) { 
-                          if (window.STREETS[k] && window.STREETS[k].name) { dict[k] = window.STREETS[k].name; foundStreets++; }
-                      }
-                      setStreetDictionary(dict);
-                  }
-                  
-                  if (window.CLASSES) {
-                      let dictDesc = { ...classDictionary };
-                      let dictDefs = { ...classDefDictionary }; 
-                      for (let k in window.CLASSES) { 
-                          if (window.CLASSES[k]) {
-                              if (window.CLASSES[k].description) {
-                                  dictDesc[k] = window.CLASSES[k].description; 
-                              }
-                              dictDefs[k] = window.CLASSES[k]; 
-                              foundClasses++; 
-                          }
-                      }
-                      setClassDictionary(dictDesc);
-                      setClassDefDictionary(dictDefs);
-                  }
-
-                  if (window.AREANAMES) {
-                      let dict = { ...areaDictionary };
-                      for (let k in window.AREANAMES) { 
-                          if (window.AREANAMES[k] && window.AREANAMES[k].name) { dict[k] = window.AREANAMES[k].name; foundAreas++; }
-                      }
-                      setAreaDictionary(dict);
-                  }
-                  if (window.GRAPHICS) {
-                      let dict = { ...graphicsDictionary };
-                      for (let k in window.GRAPHICS) { 
-                          if (window.GRAPHICS[k]) { dict[k] = window.GRAPHICS[k]; foundGraphics++; }
-                      }
-                      setGraphicsDictionary(dict);
-                  }
-                  if (window.ATTRDEFS) {
-                      let dict = { ...attrDictionary };
-                      for (let k in window.ATTRDEFS) { 
-                          if (window.ATTRDEFS[k] && window.ATTRDEFS[k].caption) { dict[k] = window.ATTRDEFS[k]; foundAttrs++; }
-                      }
-                      setAttrDictionary(dict);
-                  }
-                  if (window.CUSTOM_LINE) {
-                      let dict = { ...lineDictionary };
-                      for (let k in window.CUSTOM_LINE) {
-                          if (window.CUSTOM_LINE[k] && window.CUSTOM_LINE[k].value) { dict[k] = window.CUSTOM_LINE[k].value; foundLines++; }
-                      }
-                      setLineDictionary(dict);
-                  }
-                  
-                  if (window.CROMO_COLORS) {
-                      let dict = { ...colorDictionary };
-                      
-                      if (window.CROMO_COLORS.nivelTension && window.CROMO_COLORS.nivelTension.kv) {
-                          for (let k in window.CROMO_COLORS.nivelTension.kv) {
-                              dict[k] = window.CROMO_COLORS.nivelTension.kv[k];
-                              foundColors++;
-                          }
-                      }
-                      
-                      const catSalidas = ['salida', 'alimentador', 'trafoMt', 'trafoBt'];
-                      catSalidas.forEach(tipo => {
-                          if (window.CROMO_COLORS[tipo] && window.CROMO_COLORS[tipo].colors) {
-                              for (let k in window.CROMO_COLORS[tipo].colors) {
-                                  const cObj = window.CROMO_COLORS[tipo].colors[k];
-                                  dict['salida_' + k] = typeof cObj === 'string' ? cObj : (cObj.color || cObj.colorHex);
-                                  foundColors++;
-                              }
-                          }
-                      });
-                      
-                      setColorDictionary(dict);
-                  }
-
-                  delete window.STREETS; delete window.CLASSES; delete window.AREANAMES; delete window.GRAPHICS; delete window.ATTRDEFS; delete window.CUSTOM_LINE; delete window.CROMO_COLORS;
-
+                  loadDictionariesFromWindow(false);
               } catch(e) {
                   console.warn("Fallo inyección de diccionario", e);
                   setMessage({ text: 'Error al procesar el archivo. Asegúrate de que sea un diccionario válido.', type: 'error' });
-                  return;
               }
-              
-              let msgParts = [];
-              if (foundStreets > 0) msgParts.push(`${foundStreets} calles`);
-              if (foundClasses > 0) msgParts.push(`${foundClasses} clases`);
-              if (foundAreas > 0) msgParts.push(`${foundAreas} áreas`);
-              if (foundGraphics > 0) msgParts.push(`${foundGraphics} gráficos`);
-              if (foundAttrs > 0) msgParts.push(`${foundAttrs} atributos`);
-              if (foundLines > 0) msgParts.push(`${foundLines} tipos de línea`);
-              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
-              
-              if (msgParts.length > 0) {
-                  setDictRawData('');
-                  setMessage({ text: `¡Diccionarios cargados! El visor aprendió: ${msgParts.join(', ')}.`, type: 'success' });
-              } else {
-                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios o formatos soportados.', type: 'error' });
-              }
-          }, [streetDictionary, classDictionary, classDefDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
+          }, [loadDictionariesFromWindow]);
 
           const handleDrop = useCallback((e) => {
             e.preventDefault(); 
