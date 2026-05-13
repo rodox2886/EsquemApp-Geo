@@ -1027,6 +1027,67 @@
             try {
               let text = (customText !== null ? customText : rawData).trim(); 
               if (!text) return;
+
+              // Soporte para archivos de recorrido/conectados (ej: RECT={...,arr:{id:{p:[...]}}})
+              if (/\bRECT\s*=/.test(text)) {
+                  try {
+                      const rectObj = new Function(`${text}; return (typeof RECT !== 'undefined' ? RECT : null);`)();
+                      if (rectObj && rectObj.arr && typeof rectObj.arr === 'object') {
+                          const ids = Object.keys(rectObj.arr).map(String);
+                          if (ids.length > 0) {
+                              setConnectedIds(new Set(ids));
+                              setHighlightConnected(true);
+                              // Lo activamos para que el efecto sea visible inmediatamente al apilar conectados.
+                              setOnlyShowConnected(true);
+                          }
+
+                          // Si hay mapa base cargado, solo aplicamos el resaltado de conectados.
+                          if (data && data.elements && data.elements.length > 0) {
+                              const existingIds = new Set(data.elements.map(e => String(e.id)));
+                              const matched = ids.filter(id => existingIds.has(id)).length;
+                              const missing = ids.length - matched;
+                              setMessage({
+                                  text: matched > 0
+                                      ? `Conectados cargados: ${matched}/${ids.length} IDs existen en el mapa actual.${missing > 0 ? ` (${missing} no encontrados)` : ''} Se activó "Solo conectados".`
+                                      : `Se leyó RECT (${ids.length} IDs), pero no coincide con IDs del mapa actual. Revisa que mapa y connected pertenezcan a la misma zona/versión.`,
+                                  type: matched > 0 ? 'success' : 'error'
+                              });
+                              setViewMode('map');
+                              return;
+                          }
+                      }
+                  } catch (rectErr) {
+                      console.warn("No se pudo parsear RECT", rectErr);
+                      // Fallback tolerante: extraer IDs por regex aunque el archivo no sea JS válido.
+                      try {
+                          const ids = [];
+                          const re = /(\d+)\s*:\s*\{\s*idx\s*:\s*[-\d.]+\s*,\s*p\s*:\s*\[/g;
+                          let m;
+                          while ((m = re.exec(text)) !== null) ids.push(String(m[1]));
+                          const uniqueIds = Array.from(new Set(ids));
+                          if (uniqueIds.length > 0) {
+                              setConnectedIds(new Set(uniqueIds));
+                              setHighlightConnected(true);
+                              setOnlyShowConnected(true);
+                              if (data && data.elements && data.elements.length > 0) {
+                                  const existingIds = new Set(data.elements.map(e => String(e.id)));
+                                  const matched = uniqueIds.filter(id => existingIds.has(id)).length;
+                                  const missing = uniqueIds.length - matched;
+                                  setMessage({
+                                      text: matched > 0
+                                          ? `Conectados (modo compatible) cargados: ${matched}/${uniqueIds.length} IDs encontrados.${missing > 0 ? ` (${missing} no encontrados)` : ''}`
+                                          : `Se detectó archivo connected (${uniqueIds.length} IDs), pero no coincide con el mapa cargado.`,
+                                      type: matched > 0 ? 'success' : 'error'
+                                  });
+                                  setViewMode('map');
+                                  return;
+                              }
+                          }
+                      } catch (regexErr) {
+                          console.warn("Fallback regex RECT falló", regexErr);
+                      }
+                  }
+              }
               
               if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
