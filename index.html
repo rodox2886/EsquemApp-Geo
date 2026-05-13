@@ -19,7 +19,6 @@
     <script type="text/babel">
         const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
-        // --- Íconos SVG Inline ---
         const IconLayers = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>;
         const IconMaximize = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>;
         const IconEye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
@@ -30,36 +29,84 @@
         const IconPlus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
         const IconSearch = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 
-        // --- Constantes Técnicas ---
         const isValidNum = (n) => typeof n === 'number' && !isNaN(n) && isFinite(n);
         const isNodeValid = (el) => el && isValidNum(el.x) && isValidNum(el.y);
-
         const getRenderX = (x, flipX) => flipX ? -x : x;
         const getRenderY = (y, flipY) => flipY ? y : -y;
 
-        // IMPORTANTE: Excluimos 16, 3, 1232 y 1170 completamente para que sean invisibles.
         const HIDDEN_CLASSES = [3, 16, 1170, 1232];
-        
-        // ¡ACTUALIZADO! Incluimos TODAS las variantes posibles de CT para forzar unificación
         const CT_CLASSES = [1178, 1179, 1183, 1184, 1185, 1186, 1461];
-        
         const SUPPLY_CLASSES = [111, 190, 1373, 27];
-        const NETWORK_CLASSES = [1089, 1091, 1093, 1094, 1095, 1096, 1097, 1099, 1087, 'Puente']; 
-        const POLE_CLASSES = [15, 37, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
-        
-        // --- RESTITUCIÓN DE CONSTANTES FALTANTES ---
-        const MT_LINE_CLASSES = [1089, 1091, 1087, 1088]; // Cables Media/Alta Tensión
-        const MT_POLE_CLASSES = [52, 408, 422, 1119]; // Postes y elementos exclusivos de Media Tensión
+        const POLE_CLASSES = [15, 36, 37, 38, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
+        const MT_LINE_CLASSES = [1089, 1091, 1087, 1088]; 
+        const MT_POLE_CLASSES = [408, 422, 1119]; 
 
-        // --- DICCIONARIOS NATIVOS INTEGRADOS ---
+        const checkStringForMT = (str) => {
+            if (!str) return false;
+            const upper = String(str).toUpperCase();
+            if (upper.includes('GMT')) return true;
+            if (upper.includes('PIQUETE')) return true;
+            if (upper.includes('LIRA')) return true;
+            if (upper.includes('MEDIA TENSI')) return true;
+            if (upper.includes('ALTA TENSI')) return true;
+            if (/\bMT\b/.test(upper)) return true;
+            if (/\bAT\b/.test(upper)) return true;
+            if (/\bLAT\b/.test(upper)) return true;
+            return false;
+        };
+
+        const shouldHideAsMT = (el, classDict = {}) => {
+            const cId = Number(el.class);
+            
+            if ([-3, -2, 1, 1219].includes(cId)) return false;
+
+            if (CT_CLASSES.includes(cId)) return false; 
+            if (cId === 52) return false; 
+            if (MT_LINE_CLASSES.includes(cId)) return true;
+            if (MT_POLE_CLASSES.includes(cId)) return true;
+            
+            // Eliminamos la clase 36 y 38 de aquí. Solo dejamos el Fusible LIRA (2) y Empalme MT (418)
+            if ([2, 418].includes(cId)) return true;
+            
+            if (el.kv !== undefined && el.kv !== null) {
+                const kvNum = Number(String(el.kv).replace(',', '.'));
+                if (!isNaN(kvNum) && kvNum > 0.4) return true;
+            }
+            
+            if (checkStringForMT(classDict[cId])) return true;
+            
+            for (const key in el) {
+                if (key.startsWith('_') || key === 'x' || key === 'y' || key === 'id' || key === 'class') continue;
+                if (checkStringForMT(key)) return true;
+                
+                const val = el[key];
+                if (typeof val === 'string' || typeof val === 'number') {
+                    if (checkStringForMT(String(val))) return true;
+                }
+            }
+            
+            if (el.text && Array.isArray(el.text)) {
+                for (const t of el.text) {
+                    if (t) {
+                        if (checkStringForMT(t.tag)) return true;
+                        if (checkStringForMT(t.str || t.text || t.val)) return true;
+                    }
+                }
+            }
+            
+            return false;
+        };
+
         const DEFAULT_CLASSES = {
             "-3": "Eje Vial / Sección de Calle",
             "-2": "Vereda",
             "1": "Manzana",
+            "2": "Fusible LIRA c/Seccion",
             "15": "Poste de Madera / H°A°",
             "27": "Toma I Doble (Subterranea)",
             "37": "Caja de Entrada y Salida",
-            "39": "Caja de Distribución",
+            "38": "Caja carenciada trifásica",
+            "39": "Caja carenciada monofásica",
             "52": "Puente BT/MT",
             "56": "Caja APR / Fusible",
             "64": "Poste de Madera",
@@ -72,6 +119,7 @@
             "190": "Suministro",
             "228": "Poste Doble Perpendicular",
             "408": "Poste MT",
+            "418": "Empalme MT",
             "422": "Poste MT H°A°",
             "1087": "Línea Alta Tensión (LAT)",
             "1088": "Cable Subterráneo XLPE",
@@ -103,22 +151,42 @@
             56: { 
                 scale: 0.9,
                 gs: [
-                    { type: 5, attr: { 'stroke-width': 0.25, fill: '#ffffff', stroke: '#000000', d: 'M-1.8,-2.6 L1.8,-2.6 L1.8,2.6 L-1.8,2.6 Z' } },
-                    { type: 5, attr: { 'stroke-width': 0.4, fill: 'none', stroke: '#000000', d: 'M-0.8,-1.2 C1.8,-1.2 -1.8,1.2 0.8,1.2' } }
+                    { type: 5, attr: { 'stroke-width': 0.25, fill: '#f8fafc', stroke: '#334155', d: 'M-1.8,-2.6 L1.8,-2.6 L1.8,2.6 L-1.8,2.6 Z' } },
+                    { type: 5, attr: { 'stroke-width': 0.4, fill: 'none', stroke: '#334155', d: 'M-0.8,-1.2 C1.8,-1.2 -1.8,1.2 0.8,1.2' } }
                 ]
             },
             2: { 
                 scale: 0.8,
                 gs: [
-                    { type: 1, attr: { 'stroke-width': 0.2, stroke: '#272828', x1: 0.0, y1: -0.55, x2: -3.5, y2: -0.55 } },
-                    { type: 1, attr: { 'stroke-width': 0.2, stroke: '#272828', x1: 0.0, y1: 0.55, x2: -3.5, y2: 0.55 } },
-                    { type: 5, attr: { 'stroke-width': 0.2, stroke: '#272828', d: 'M-3.5,1.05 L-3.5,0 L-3.5,-1.05 L0,-1.05 L0,1.05z', fill: '#272828', 'fill-opacity': 0.1 } }
+                    { type: 1, attr: { 'stroke-width': 0.2, stroke: '#334155', x1: 0.0, y1: -0.55, x2: -3.5, y2: -0.55 } },
+                    { type: 1, attr: { 'stroke-width': 0.2, stroke: '#334155', x1: 0.0, y1: 0.55, x2: -3.5, y2: 0.55 } },
+                    { type: 5, attr: { 'stroke-width': 0.2, stroke: '#334155', d: 'M-3.5,1.05 L-3.5,0 L-3.5,-1.05 L0,-1.05 L0,1.05z', fill: '#334155','fill-opacity': 0.1 } }
                 ]
             },
-            1184: { // Polígono duro por defecto para un CT a Nivel (Triángulo)
+            1184: { 
                 scale: 1.0,
                 gs: [
-                    { type: 5, attr: { 'stroke-width': 0.5, d: 'M0,4 L-4,-4 L4,-4 Z' } }
+                    { type: 5, attr: { 'stroke-width': 0.3, stroke: '#1e293b', fill: '#475569', d: 'M0,4 L-4,-4 L4,-4 Z' } }
+                ]
+            },
+            1122: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,0 L 2.5,0 L 2.5,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } }
+                ]
+            },
+            1123: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,0 L 3.8,0 L 3.8,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } },
+                    { type: 1, attr: { x1: 1.9, y1: 0, x2: 1.9, y2: 2.5, stroke: '#475569', 'stroke-width': 0.2 } }
+                ]
+            },
+            1369: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,0 L 2.5,0 L 2.5,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } },
+                    { type: 1, attr: { x1: 0, y1: 1.25, x2: 2.5, y2: 1.25, stroke: '#475569', 'stroke-width': 0.2 } }
                 ]
             }
         };
@@ -134,16 +202,18 @@
             "ni": { caption: "Número Identificador (NI)" }
         };
 
+        // Paleta en escala de grises (usada solo como referencia, el motor fuerza gris ahora)
         const HARDCODED_COLORS = {
-            '0.4': "#3c61c1",
-            '13.2': "#4CAF50",
-            '21': "#00ffff",
-            '27': "#4CAF50",
-            '33': "#dd4be5",
-            '66': "#673ab7",
-            '132': "#ff5722",
-            '220': "#2196F3",
-            '500': "#f44336"
+            '0.4': "#9ca3af",
+            '13.2': "#475569",
+            '21': "#475569",
+            '27': "#475569",
+            '33': "#334155",
+            '66': "#1e293b",
+            '132': "#0f172a",
+            '220': "#020617",
+            '500': "#020617",
+            'salida_3': "#64748b" 
         };
 
         const HARDCODED_LINES = {
@@ -155,6 +225,7 @@
 
         function App() {
           const canvasRef = useRef(null);
+          const fileInputRef = useRef(null);
           const [rawData, setRawData] = useState('');
           const [data, setData] = useState(null);
           const [connectedIds, setConnectedIds] = useState(new Set());
@@ -184,6 +255,7 @@
 
           const [streetDictionary, setStreetDictionary] = useState({});
           const [classDictionary, setClassDictionary] = useState(DEFAULT_CLASSES);
+          const [classDefDictionary, setClassDefDictionary] = useState({}); 
           const [areaDictionary, setAreaDictionary] = useState({});
           const [graphicsDictionary, setGraphicsDictionary] = useState(HARDCODED_GRAPHICS);
           const [attrDictionary, setAttrDictionary] = useState(HARDCODED_ATTRS);
@@ -191,6 +263,28 @@
           const [lineDictionary, setLineDictionary] = useState(HARDCODED_LINES);
           
           const [dictRawData, setDictRawData] = useState('');
+
+          const checkIsCable = useCallback((el) => {
+              if (!el) return false;
+              const cId = Number(el.class);
+              
+              if (POLE_CLASSES.includes(cId) || CT_CLASSES.includes(cId) || SUPPLY_CLASSES.includes(cId) || [1113, 1116, 1119, 52, 2, 418].includes(cId)) {
+                  return false;
+              }
+
+              if ([1089, 1091, 1093, 1094, 1095, 1096, 1097, 1098, 1099, 1087].includes(cId) || el.class === 'Puente') return true;
+              
+              const cDef = classDefDictionary[String(cId)];
+              if (cDef) {
+                  if (cDef.type === 'L' || cDef.type === 'C') return true;
+                  if (cDef.type === 'E' || cDef.type === 'V' || cDef.type === 'M' || cDef.type === 'S' || cDef.type === 'N') return false;
+              }
+              
+              if (el._stdCoords && el._stdCoords.length >= 4 && el.closed !== 1 && ![-3, -2, 1, 1219].includes(cId)) {
+                  return true;
+              }
+              return false;
+          }, [classDefDictionary]);
 
           const handleManualEdit = useCallback((id, field, value) => {
             setManualEdits(prev => ({
@@ -270,61 +364,6 @@
               }
           }, [data, searchQuery, streetDictionary, exportFlipX, exportFlipY]);
 
-          const networkEnds = useMemo(() => {
-            if (!data) return [];
-            const ends = [];
-            const pointMap = {};
-            const keyF = (nx, ny) => `${Math.round(nx)},${Math.round(ny)}`;
-            data.elements.forEach(o => {
-              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
-              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
-                for(let i=0; i<o._stdCoords.length; i+=2) pointMap[keyF(o._stdCoords[i], o._stdCoords[i+1])] = (pointMap[keyF(o._stdCoords[i], o._stdCoords[i+1])] || 0) + 1;
-              }
-            });
-            data.elements.forEach(o => {
-              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
-              if (o._stdCoords && NETWORK_CLASSES.includes(o.class) && o._stdCoords.length >= 4) {
-                const c = o._stdCoords, last = c.length - 2;
-                ends.push({ x: c[0], y: c[1], prevX: c[2], prevY: c[3], degree: pointMap[keyF(c[0], c[1])], id: o.id });
-                ends.push({ x: c[last], y: c[last+1], prevX: c[last-2], prevY: c[last-1], degree: pointMap[keyF(c[last], c[last+1])], id: o.id });
-              }
-            });
-            return ends;
-          }, [data, showMT]);
-
-          const getNearestCableEnd = useCallback((x, y, usedSet = null) => {
-            if (!networkEnds || networkEnds.length === 0) return null;
-            let nearest = null, bestDist = 10.0; 
-            const isUsed = (e) => usedSet && usedSet.has(e.id + '_' + e.x + '_' + e.y);
-            networkEnds.filter(e => e.degree === 1 && !isUsed(e)).forEach(e => {
-                const d = Math.hypot(x - e.x, y - e.y);
-                if (d < bestDist) { bestDist = d; nearest = e; }
-            });
-            if (!nearest) {
-                bestDist = 5.0; 
-                networkEnds.filter(e => e.degree > 1 && !isUsed(e)).forEach(e => {
-                    const d = Math.hypot(x - e.x, y - e.y);
-                    if (d < bestDist) { bestDist = d; nearest = e; }
-                });
-            }
-            return nearest;
-          }, [networkEnds]);
-
-          const pillarSnaps = useMemo(() => {
-              if (!data) return {};
-              const snaps = {}, used = new Set();
-              data.elements.forEach(el => {
-                  if ([1122, 1123, 1369].includes(el.class)) {
-                      const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
-                      const fx = el.x + (el._autoDx || 0) + edit.dx;
-                      const fy = el.y + (el._autoDy || 0) + edit.dy;
-                      const snap = getNearestCableEnd(fx, fy, used);
-                      if (snap) { snaps[el.id] = snap; used.add(snap.id + '_' + snap.x + '_' + snap.y); }
-                  }
-              });
-              return snaps;
-          }, [data, getNearestCableEnd, manualEdits]);
-
           const adjMap = useMemo(() => {
             if (!data) return {};
             const adj = {}, initAdj = (id) => { if (!adj[id]) adj[id] = new Set(); };
@@ -338,13 +377,11 @@
             const connectionPoints = [];
             data.elements.forEach(el => {
                 const eid = String(el.id);
-                if (el._stdCoords && NETWORK_CLASSES.includes(el.class) && el._stdCoords.length >= 4) {
+                if (el._stdCoords && checkIsCable(el) && el._stdCoords.length >= 4) {
                     connectionPoints.push({ id: eid, x: el._stdCoords[0], y: el._stdCoords[1] }); 
                     connectionPoints.push({ id: eid, x: el._stdCoords[el._stdCoords.length - 2], y: el._stdCoords[el._stdCoords.length-1] }); 
                 } else if (isNodeValid(el)) {
-                    let px = el.x, py = el.y;
-                    if (pillarSnaps[eid]) { px = pillarSnaps[eid].x; py = pillarSnaps[eid].y; }
-                    connectionPoints.push({ id: eid, x: px, y: py });
+                    connectionPoints.push({ id: eid, x: el.x, y: el.y });
                 }
             });
             const TOLERANCE_SQ = 1.0, CELL = 10, grid = {};
@@ -366,7 +403,7 @@
                 }
             });
             return adj;
-          }, [data, pillarSnaps]);
+          }, [data, checkIsCable]);
 
           const getStreetAngleAt = useCallback((x, y) => {
             if (!data) return 0;
@@ -476,7 +513,7 @@
                   }
               }
               return null;
-          }, [data, selectedFeature, manualSupplyLinks, exportFlipX, exportFlipY]);
+          }, [data, selectedFeature, manualSupplyLinks]);
 
           const handleTrace = useCallback((mode) => {
               if (!data || !selectedFeature) return;
@@ -529,39 +566,13 @@
               setConnectedIds(newConnected); setHighlightConnected(true); setOnlyShowConnected(false);
           }, [data, adjMap, selectedFeature, pairedFeatureId]);
 
-          const getCableOrientationAt = useCallback((x, y) => {
-            if (!data) return null;
-            let bestDist = Infinity, bestVec = null;
-            data.elements.forEach(o => {
-              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
-              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
-                for (let i = 0; i < o._stdCoords.length - 3; i += 2) {
-                  const x0 = o._stdCoords[i], y0 = o._stdCoords[i+1], x1 = o._stdCoords[i+2], y1 = o._stdCoords[i+3];
-                  const dx = x1 - x0, dy = y1 - y0, lenSq = dx * dx + dy * dy;
-                  if (lenSq < 1e-6) continue;
-                  const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / lenSq));
-                  const px = x0 + t * dx, py = y0 + t * dy;
-                  const dist = Math.hypot(x - px, y - py);
-                  if (dist < bestDist) { bestDist = dist; bestVec = { dx, dy }; }
-                }
-              }
-            });
-            if (bestVec) {
-              let dx = exportFlipX ? -bestVec.dx : bestVec.dx, dy = exportFlipY ? bestVec.dy : -bestVec.dy;
-              const len = Math.hypot(dx, dy);
-              if (len < 1e-6) return null;
-              return { vector: { dx: dx/len, dy: dy/len }, angle: Math.atan2(dy/len, dx/len) * 180 / Math.PI };
-            }
-            return null;
-          }, [data, exportFlipX, exportFlipY, showMT]);
-
           const getNearestNetworkPoint = useCallback((x, y) => {
             if (!data) return null;
             let nearest = null, bestDist = Infinity;
             const maxSnapDist = 80.0; 
             data.elements.forEach(o => {
-              if (!showMT && MT_LINE_CLASSES.includes(o.class)) return; 
-              if (o._stdCoords && NETWORK_CLASSES.includes(o.class)) {
+              if (!showMT && shouldHideAsMT(o, classDictionary)) return; 
+              if (o._stdCoords && checkIsCable(o)) {
                 for (let i = 0; i < o._stdCoords.length - 3; i += 2) {
                   const x0 = o._stdCoords[i], y0 = o._stdCoords[i+1], x1 = o._stdCoords[i+2], y1 = o._stdCoords[i+3];
                   const dx = x1 - x0, dy = y1 - y0, lenSq = dx * dx + dy * dy;
@@ -573,13 +584,12 @@
               }
             });
             return (bestDist <= maxSnapDist) ? nearest : null;
-          }, [data, showMT]);
+          }, [data, showMT, classDictionary, checkIsCable]);
 
           const computeCtOrientation = useCallback((el) => {
             if (!data) return { rotation: 0 };
             const basePos = { x: el.x, y: el.y };
 
-            // 1. Atracción Magnética a Bornes: Buscar los bornes asociados (clase 1113) para que la base los mire de frente.
             let bx = 0, by = 0, bcount = 0;
             data.elements.forEach(o => {
                 if (o.class === 1113 && String(o.master) === String(el.id)) {
@@ -595,11 +605,9 @@
                 const relX = exportFlipX ? -(cbx - basePos.x) : (cbx - basePos.x);
                 const relY = exportFlipY ? (cby - basePos.y) : -(cby - basePos.y);
                 const angToBornes = Math.atan2(relY, relX) * 180 / Math.PI;
-                // Si rotamos a (angToBornes - 90), la base plana (el "abajo" del triángulo) quedará mirando directo a los bornes.
                 return { rotation: angToBornes - 90 };
             }
 
-            // 2. Fallback: Orientación clásica calculada por el ángulo de la calle y manzana si no tiene bornes
             const streetAngle = getStreetAngleAt(basePos.x, basePos.y);
             let minBlockDist = Infinity, blockCenter = { x: el.x, y: el.y };
             data.elements.forEach(o => {
@@ -623,61 +631,62 @@
             return { rotation: (angleDiff(tipAng1, blockAng) < angleDiff(tipAng2, blockAng) ? rot1 : rot2) };
           }, [data, getStreetAngleAt, exportFlipY, exportFlipX, manualEdits]);
 
-          // --- 2. Estilos Visuales ---
-          // Motor de Colores por Tensión
+          // FUNCIÓN MODIFICADA: ESCALA DE GRISES OBLIGATORIA (NEUTRA)
           const getElementStyle = useCallback((el, isSelected, isHovered) => {
             const isConnected = connectedIds.size === 0 || connectedIds.has(String(el.id));
             const isDimmed = connectedIds.size > 0 && highlightConnected && !isConnected;
-            const dimColor = (c) => (isDimmed && c !== '#cfd3d8') ? '#cbd5e1' : c;
+            const dimColor = (c) => (isDimmed && c !== '#e5e5e5') ? '#e5e5e5' : c; // Dimming ultra suave
             
-            let opacity = isDimmed ? 0.25 : 1.0;
-            const SOFT_GRAY_TRANS = 'rgba(226, 232, 240, 0.75)';
+            let opacity = isDimmed ? 0.4 : 1.0;
+            const SOFT_GRAY_TRANS = 'rgba(229, 229, 229, 0.75)';
             
-            // Asignación de Tensión (kv) desde nuestro nuevo diccionario
-            let stroke = '#4b5320'; 
-            if (el.kv !== undefined && colorDictionary[String(el.kv)]) {
-                stroke = colorDictionary[String(el.kv)];
-            } else {
-                if ([1093, 1094, 1095, 111, 190].includes(el.class)) stroke = colorDictionary['0.4'] || '#3c61c1'; 
-                else if ([1089, 1091, 52, 56, 408, 422].includes(el.class)) stroke = colorDictionary['13.2'] || '#4CAF50'; 
+            let stroke = null; 
+            
+            // Forzamos la escala de grises neutra para todos los cables
+            if ([1093, 1094, 1095, 1096, 1097, 1098, 111, 190].includes(el.class)) stroke = '#737373'; // BT - Gris Medio
+            else if ([1089, 1091, 1087, 1088, 52, 56, 408, 422].includes(el.class)) stroke = '#171717'; // MT - Casi Negro
+            else stroke = '#525252'; // Default gris oscuro
+            
+            // Excepción visual: los postes bases siguen siendo grises
+            if (POLE_CLASSES.includes(el.class) && el.class !== 56 && el.class !== 52) {
+                stroke = '#404040';
             }
-            if (POLE_CLASSES.includes(el.class) && el.class !== 56 && el.class !== 52) stroke = '#000000';
             
             let fill = null, worldSize = 1, minPixels = 1.0;
             const isPotential = el.class === 1373;
             
             if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
-                fill = '#b45309'; 
-                worldSize = 2.0; 
-                minPixels = 2.0;  
+                fill = '#525252'; // CTs en gris oscuro
+                worldSize = 2.5; 
+                minPixels = 3.5;  
             } else {
               if (el.type === 1) fill = stroke;
               if (SUPPLY_CLASSES.includes(el.class)) { 
                   worldSize = 2.7; minPixels = 1.5; 
-                  fill = isPotential ? 'rgba(241, 245, 249, 0.5)' : '#e2e8f0'; // Gris suave y sutil
-                  stroke = '#334155'; // Borde adaptado para combinar mejor
+                  fill = isPotential ? 'rgba(255, 255, 255, 0.5)' : '#f5f5f5'; 
+                  stroke = '#a3a3a3'; 
               } else if (el.class === 1113) { 
                   worldSize = 1.8; minPixels = 1.0; 
               } else if (el.class === 52) { 
                   worldSize = 2.4; minPixels = 1.0; 
               } else if ([1122, 1123, 1369].includes(el.class)) { 
-                  worldSize = 0.9; minPixels = 1.0; 
-              } else if (el.class === 39) { 
-                  worldSize = 1.8; minPixels = 1.3; 
+                  worldSize = 1.4; minPixels = 3.0; 
+              } else if ([38, 39].includes(el.class)) { 
+                  worldSize = 2; minPixels = 1.0; 
               } else if (el.class === 56) { 
-                  worldSize = 2.0; minPixels = 1.5; stroke = '#000000'; fill = '#ffffff'; 
+                  worldSize = 2.0; minPixels = 1.5; stroke = '#404040'; fill = '#ffffff'; 
               } else if (POLE_CLASSES.includes(el.class)) { 
                   worldSize = 1.7; minPixels = 1.2; 
               }
             }
             
+            // Preservar la interactividad de hover (azul) y selección (rojo) 
             if (isSelected) { minPixels = Math.max(minPixels, 6); stroke = '#ef4444'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(239, 68, 68, 0.25)'; else if (fill && !isPotential) fill = '#ef4444'; opacity = 1.0; } 
             else if (isHovered) { minPixels = Math.max(minPixels + 1, 4); stroke = '#3b82f6'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(59, 130, 246, 0.25)'; else if (fill && !isPotential) fill = '#3b82f6'; if (isDimmed) opacity = 0.8; }
             
             return { stroke: (isSelected || isHovered) ? stroke : dimColor(stroke), fill: fill ? ((isSelected || isHovered) ? fill : dimColor(fill)) : null, worldSize, minPixels, isPolygon: el.closed === 1 || [1, 1219].includes(el.class), opacity, isConnected };
-          }, [connectedIds, highlightConnected, colorDictionary]);
+          }, [connectedIds, highlightConnected]);
 
-          // --- 3. Handlers de Interacción ---
           const getMouseWorldCoords = useCallback((clientX, clientY) => {
             if (!canvasRef.current || !data) return { wx: 0, wy: 0, clientX };
             const r = canvasRef.current.getBoundingClientRect();
@@ -692,8 +701,8 @@
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale, ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             let cl = null, bestDistScreen = Infinity;
             data.elements.forEach(el => {
-              if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return; 
-              if(isNodeValid(el) && !NETWORK_CLASSES.includes(el.class)){ 
+              if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
+              if(isNodeValid(el) && !checkIsCable(el)){ 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const fx = el.x + (el._autoDx || 0) + edit.dx, fy = el.y + (el._autoDy || 0) + edit.dy;
                 let sx = rx(fx), sy = ry(fy);
@@ -702,15 +711,12 @@
                 if (el.class === 52) { 
                     const snap = getNearestNetworkPoint(fx, fy); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
-                } else if ([1122, 1123, 1369].includes(el.class)) { 
-                    const snap = pillarSnaps[el.id]; 
-                    if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
-                }
+                } 
                 
                 const dScreen = Math.hypot(sx - mouseCanvasX, sy - mouseCanvasY);
                 if (dScreen < (CT_CLASSES.includes(el.class) ? Math.max(8, rStable + 2) : Math.max(6, rStable + 2)) && dScreen < bestDistScreen) { bestDistScreen = dScreen; cl = el; }
               } 
-              else if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+              else if (el._stdCoords && checkIsCable(el)) {
                 let minLineDist = Infinity;
                 for (let i = 0; i < el._stdCoords.length - 3; i += 2) {
                     const sx1 = rx(el._stdCoords[i]), sy1 = ry(el._stdCoords[i+1]), sx2 = rx(el._stdCoords[i+2]), sy2 = ry(el._stdCoords[i+3]);
@@ -722,7 +728,7 @@
               }
             });
             return cl;
-          }, [data, transform, manualEdits, getElementStyle, exportFlipX, exportFlipY, showMT, pillarSnaps, getNearestNetworkPoint]);
+          }, [data, transform, manualEdits, getElementStyle, exportFlipX, exportFlipY, showMT, getNearestNetworkPoint, classDictionary, checkIsCable]);
 
           const handleMouseDown = useCallback((e) => {
             if (!data || !canvasRef.current) return;
@@ -736,7 +742,7 @@
             }
 
             if (cl) {
-              if (selectedFeature?.id === cl.id && !NETWORK_CLASSES.includes(cl.class)) {
+              if (selectedFeature?.id === cl.id && !checkIsCable(cl)) {
                 setDraggingFeature(cl.id);
                 setFeatureDragInfo({ startX: coords.wx, startY: coords.wy, startClientX: e.clientX, initialEdit: manualEdits[cl.id] || { dx: 0, dy: 0, rot: 0 } });
               } else {
@@ -745,7 +751,7 @@
             } else {
               setSelectedFeature(null); setIsDragging(true); setDragStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
             }
-          }, [data, getMouseWorldCoords, manualEdits, findNodeAtCursor, transform, selectedFeature, linkingMode]);
+          }, [data, getMouseWorldCoords, manualEdits, findNodeAtCursor, transform, selectedFeature, linkingMode, checkIsCable]);
 
           const handleMouseMove = useCallback((e) => {
             if (draggingFeature && featureDragInfo) {
@@ -775,7 +781,7 @@
             if (!dataset || !canvasRef.current) return;
             let xs = [], ys = [];
             dataset.elements.forEach(el => {
-                if (!showMT && (MT_LINE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(el.class))) return;
+                if (!showMT && shouldHideAsMT(el, classDictionary)) return;
                 if ([...SUPPLY_CLASSES, ...POLE_CLASSES, ...CT_CLASSES, 1113].includes(el.class) && isNodeValid(el)) { xs.push(el.x); ys.push(el.y); }
             });
             if (xs.length === 0) dataset.elements.forEach(el => {
@@ -790,7 +796,6 @@
                 }
             });
             
-            // Fuerte protección contra NaN en las coordenadas (Evita el bug del lienzo en blanco)
             xs = xs.filter(isValidNum);
             ys = ys.filter(isValidNum);
             
@@ -817,7 +822,7 @@
             if (isValidNum(ns)) {
                 setTransform({ scale: ns, x: w/2 - ((rx1+rx2)/2)*ns, y: h/2 - ((ry1+ry2)/2)*ns });
             }
-          }, [showMT]);
+          }, [showMT, classDictionary]);
 
           const handleDragOver = useCallback((e) => { 
               e.preventDefault(); 
@@ -829,7 +834,6 @@
               setIsDraggingFile(false); 
           }, []);
 
-          // EXTRACTOR DE DICCIONARIOS CON EVALUACIÓN SEGURA
           const processDictionaryData = useCallback((text) => {
               setMessage(null);
               if (!text || !text.trim()) return;
@@ -848,13 +852,23 @@
                       }
                       setStreetDictionary(dict);
                   }
+                  
                   if (window.CLASSES) {
-                      let dict = { ...classDictionary };
+                      let dictDesc = { ...classDictionary };
+                      let dictDefs = { ...classDefDictionary }; 
                       for (let k in window.CLASSES) { 
-                          if (window.CLASSES[k] && window.CLASSES[k].description) { dict[k] = window.CLASSES[k].description; foundClasses++; }
+                          if (window.CLASSES[k]) {
+                              if (window.CLASSES[k].description) {
+                                  dictDesc[k] = window.CLASSES[k].description; 
+                              }
+                              dictDefs[k] = window.CLASSES[k]; 
+                              foundClasses++; 
+                          }
                       }
-                      setClassDictionary(dict);
+                      setClassDictionary(dictDesc);
+                      setClassDefDictionary(dictDefs);
                   }
+
                   if (window.AREANAMES) {
                       let dict = { ...areaDictionary };
                       for (let k in window.AREANAMES) { 
@@ -883,15 +897,31 @@
                       }
                       setLineDictionary(dict);
                   }
+                  
                   if (window.CROMO_COLORS) {
                       let dict = { ...colorDictionary };
-                      for (let k in window.CROMO_COLORS) {
-                          if (window.CROMO_COLORS[k]) { dict[k] = window.CROMO_COLORS[k]; foundColors++; }
+                      
+                      if (window.CROMO_COLORS.nivelTension && window.CROMO_COLORS.nivelTension.kv) {
+                          for (let k in window.CROMO_COLORS.nivelTension.kv) {
+                              dict[k] = window.CROMO_COLORS.nivelTension.kv[k];
+                              foundColors++;
+                          }
                       }
+                      
+                      const catSalidas = ['salida', 'alimentador', 'trafoMt', 'trafoBt'];
+                      catSalidas.forEach(tipo => {
+                          if (window.CROMO_COLORS[tipo] && window.CROMO_COLORS[tipo].colors) {
+                              for (let k in window.CROMO_COLORS[tipo].colors) {
+                                  const cObj = window.CROMO_COLORS[tipo].colors[k];
+                                  dict['salida_' + k] = typeof cObj === 'string' ? cObj : (cObj.color || cObj.colorHex);
+                                  foundColors++;
+                              }
+                          }
+                      });
+                      
                       setColorDictionary(dict);
                   }
 
-                  // Limpieza
                   delete window.STREETS; delete window.CLASSES; delete window.AREANAMES; delete window.GRAPHICS; delete window.ATTRDEFS; delete window.CUSTOM_LINE; delete window.CROMO_COLORS;
 
               } catch(e) {
@@ -913,9 +943,9 @@
                   setDictRawData('');
                   setMessage({ text: `¡Diccionarios cargados! El visor aprendió: ${msgParts.join(', ')}.`, type: 'success' });
               } else {
-                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios (STREETS, GRAPHICS, etc).', type: 'error' });
+                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios o formatos soportados.', type: 'error' });
               }
-          }, [streetDictionary, classDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
+          }, [streetDictionary, classDictionary, classDefDictionary, areaDictionary, graphicsDictionary, attrDictionary, lineDictionary, colorDictionary]);
 
           const handleDrop = useCallback((e) => {
             e.preventDefault(); 
@@ -929,7 +959,6 @@
                 reader.onload = (ev) => {
                     const text = ev.target.result;
                     
-                    // Verificamos si es un diccionario basado en extensión, nombre o contenido clave
                     const isDictFile = file.name.toLowerCase().endsWith('.js') || 
                                        file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
                                        /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
@@ -943,7 +972,32 @@
                 };
                 reader.readAsText(file);
             });
-          }, [viewMode, processDictionaryData, processData]);
+          }, [viewMode, processDictionaryData]);
+
+          const handleFileUpload = useCallback((e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const text = ev.target.result;
+                    
+                    const isDictFile = file.name.toLowerCase().endsWith('.js') || 
+                                       file.name.toLowerCase().match(/(street|area|class|meta|graphic|color|line)/) ||
+                                       /(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text);
+                    
+                    if (isDictFile) {
+                        processDictionaryData(text);
+                        if (viewMode !== 'map') setViewMode('input');
+                    } else {
+                        processData(true, text);
+                    }
+                };
+                reader.readAsText(file);
+            });
+            e.target.value = null; 
+          }, [viewMode, processDictionaryData]);
 
           const processData = useCallback((isAppend = false, customText = null) => {
             setMessage(null);
@@ -951,7 +1005,6 @@
               let text = (customText !== null ? customText : rawData).trim(); 
               if (!text) return;
               
-              // Buscamos dinamicamente si el texto contiene diccionarios.
               if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
               }
@@ -972,7 +1025,6 @@
               blocks.forEach(block => {
                 let el = {}; try { el = new Function('return (' + block + ')')() || {}; } catch (e) { return; }
                 
-                // Forzamos conversión segura de ID para evitar falsos negativos en 'includes()'
                 if (el.class !== undefined && el.class !== null) el.class = Number(el.class);
 
                 const ext = (r) => { let m = block.match(r); return m ? m[1].split(/[\s,]+/).map(n => parseFloat(n)).filter(isValidNum) : null; };
@@ -1050,15 +1102,6 @@
               });
               combined = [...combined, ...Array.from(uniqueMap.values())];
               
-              const pillarMap = {};
-              combined.forEach(el => {
-                  if (isNodeValid(el) && [39, 1122, 1123, 1369].includes(el.class)) { 
-                      const key = `${Math.round(el.x)},${Math.round(el.y)}`;
-                      if (!pillarMap[key]) pillarMap[key] = []; pillarMap[key].push(el);
-                  }
-              });
-              Object.values(pillarMap).forEach(arr => { if (arr.length > 1) arr.forEach((el, idx) => { el._overlapIdx = idx; }); });
-              
               const processed = { geo: { scale: localScale, x1: localX1, y2: localY2 }, elements: combined, bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 } };
               setData(processed); 
               if (customText === null) setRawData(''); 
@@ -1069,7 +1112,7 @@
             } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
 
-          const isTraceable = selectedFeature ? (NETWORK_CLASSES.includes(selectedFeature.class) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
+          const isTraceable = selectedFeature ? (checkIsCable(selectedFeature) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
 
           const getFeatureClassName = (el) => {
               if (!el) return 'Elemento Desconocido';
@@ -1077,25 +1120,17 @@
               return name ? name : `Clase ${el.class}`;
           };
 
-          // --- 4. Motor de Renderizado ---
           useEffect(() => {
             if (!data || viewMode !== 'map' || !canvasRef.current) return;
             const c = canvasRef.current, ctx = c.getContext('2d'), dpr = window.devicePixelRatio || 1, rect = c.getBoundingClientRect();
             c.width = rect.width * dpr; c.height = rect.height * dpr; ctx.scale(dpr, dpr);
-            ctx.fillStyle = '#fdfdfd'; ctx.fillRect(0, 0, rect.width, rect.height);
+            
+            // Fondo blanco puro
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, rect.width, rect.height);
             
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             
-            const ctGroups = {};
-            data.elements.forEach(el => {
-                if (el.class === 1113 && el.master != null) {
-                    const k = String(el.master);
-                    if (!ctGroups[k]) ctGroups[k] = []; ctGroups[k].push(el);
-                }
-            });
-
-            const terminalsToDraw = []; 
             const drawnTexts = new Set(); 
 
             const checkAndRegisterText = (text, screenX, screenY, tolerance = 15) => {
@@ -1105,27 +1140,36 @@
                 return false;
             };
 
-            // 1. CAPA BASE Y CALLES: Fondo (Manzanas y Ejes viales)
+            // 1. CAPA BASE Y CALLES (Escala de grises suaves neutros)
             data.elements.forEach(el => {
               try {
-                  // Ignorar las clases ocultas completamente en la capa base
                   if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return; 
 
                   if (el._stdCoords) {
-                      if (el.class === 1 || el.class === 1219) {
+                      const cDef = classDefDictionary[String(el.class)];
+                      const isManzana = el.class === 1 || el.class === 1219 || (cDef && cDef.type === 'M');
+
+                      if (isManzana) {
                           ctx.beginPath(); let m = true;
                           for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                          ctx.closePath(); ctx.fillStyle = el.class === 1 ? '#f4f4ec' : '#f8f8f2'; ctx.fill(); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 0.8; ctx.stroke();
-                      } else if (!NETWORK_CLASSES.includes(el.class) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
+                          ctx.closePath(); 
+                          // Manzanas en gris extra claro neutro
+                          ctx.fillStyle = el.class === 1 ? '#fafafa' : '#ffffff'; 
+                          ctx.fill(); 
+                          ctx.strokeStyle = '#d4d4d4'; 
+                          ctx.lineWidth = 0.8; 
+                          ctx.stroke();
+                      } else if (!checkIsCable(el) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
+                          // Polilíneas genéricas (e.g. veredas, calles)
                           ctx.beginPath(); let m = true;
                           for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                          ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
+                          ctx.strokeStyle = 'rgba(163, 163, 163, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
                       }
                   }
               } catch(e) {}
             });
 
-            // 1.5 CAPA DE TEXTOS DE CALLE (Inteligente)
+            // 1.5 CAPA DE TEXTOS DE CALLE
             data.elements.forEach(el => {
               try {
                 const isStreetElement = el.class === -2 || el.class === -3 || el.class === 1 || el.class === 1219;
@@ -1164,7 +1208,8 @@
                         
                         if (fontSize >= 7.5) {
                             ctx.font = `600 ${fontSize}px "Segoe UI", Arial, sans-serif`;
-                            ctx.fillStyle = '#000000'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                            ctx.fillStyle = '#737373'; // Nombres de calle en gris medio neutro
+                            ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                             ctx.fillText(displayStr, 0, -1);
                         }
                         ctx.restore();
@@ -1173,7 +1218,7 @@
               } catch(e) {}
             });
 
-            // 1.6 Nombres de Calles y Alturas calculadas (SOLO clase -2)
+            // 1.6 Nombres de Calles Calculadas
             if (showStreetNames) {
                 data.elements.forEach(el => {
                   try {
@@ -1205,7 +1250,7 @@
                                             ctx.save(); ctx.translate(mx, my); ctx.rotate(angRad);
                                             ctx.font = `${fontSize}px "Segoe UI", Arial, sans-serif`;
                                             ctx.textAlign = 'center'; ctx.textBaseline = flipped ? 'top' : 'bottom';
-                                            ctx.fillStyle = '#000000'; ctx.fillText(displayStr, 0, flipped ? 2 : -2); ctx.restore();
+                                            ctx.fillStyle = '#737373'; ctx.fillText(displayStr, 0, flipped ? 2 : -2); ctx.restore();
                                         }
                                     }
                                 }
@@ -1216,11 +1261,11 @@
                 });
             }
 
-            // 2. CAPA INFERIOR: Red BT/MT y Puentes con Trazos Reales
+            // 2. CAPA RED DE CABLES / LÍNEAS DE RED
             data.elements.forEach(el => {
               try {
-                  if (!showMT && MT_LINE_CLASSES.includes(el.class)) return; 
-                  if (el._stdCoords && NETWORK_CLASSES.includes(el.class)) {
+                  if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
+                  if (el._stdCoords && checkIsCable(el)) {
                     const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
                     const isHov = hoveredFeature?.id === el.id;
                     const s = getElementStyle(el, isSel, isHov);
@@ -1241,28 +1286,67 @@
                         ctx.lineWidth = isSel ? 3.5 : (isHov ? 2.5 : (s.isConnected ? 2.2 : 1.4)); 
                         
                         let dashArray = [];
-                        if (el['line-type'] && lineDictionary[el['line-type']]) {
-                            dashArray = lineDictionary[el['line-type']].map(v => v * 3.5);
-                        } else {
-                            if (el.class === 1091) dashArray = lineDictionary['cusmt'] ? lineDictionary['cusmt'].map(v=>v*3.5) : [10.5, 5.25];
-                            else if (el.class === 1095) dashArray = lineDictionary['casbt'] ? lineDictionary['casbt'].map(v=>v*3.5) : [1.75, 1.75];
-                            else if (el.class === 1089) dashArray = [];
-                            else if (el.class === 1093) dashArray = [];
-                            else if (el.class === 1094) dashArray = [2, 2];
+                        
+                        let lineTypeName = el['line-type'] || el.lineType || el.tipoLinea || el.tipo_linea || el.lt;
+
+                        if (!lineTypeName && classDefDictionary[String(el.class)]) {
+                            const cDef = classDefDictionary[String(el.class)];
+                            lineTypeName = cDef.lt || cDef['line-type'] || cDef.lineType;
                         }
+
+                        if (!lineTypeName) {
+                            let gIds = el.gs && el.gs.length > 0 ? el.gs : [el.class];
+                            for (let gId of gIds) {
+                                const gDef = graphicsDictionary[String(gId)];
+                                if (gDef && (gDef['line-type'] || gDef.lineType || gDef.lt)) {
+                                    lineTypeName = gDef['line-type'] || gDef.lineType || gDef.lt;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (lineTypeName) {
+                            if (lineDictionary[lineTypeName]) {
+                                dashArray = lineDictionary[lineTypeName].map(v => v * 5.0);
+                            } else if (lineTypeName === 'continuous') {
+                                dashArray = []; 
+                            }
+                        }
+                        
                         ctx.setLineDash(dashArray);
                     }
-                    ctx.stroke(); ctx.restore();
+                    ctx.stroke(); 
+
+                    // Nodos grises en los cables con zoom
+                    if (transform.scale > 3) {
+                        ctx.setLineDash([]); 
+                        ctx.fillStyle = '#f5f5f5'; 
+                        ctx.strokeStyle = s.stroke; 
+                        ctx.lineWidth = 0.8;
+                        const dotRadius = isSel ? 3.5 : Math.max(2.0, Math.min(3.5, 0.15 * transform.scale));
+                        
+                        for (let i = 0; i < el._stdCoords.length; i += 2) {
+                            const sx = rx(el._stdCoords[i]);
+                            const sy = ry(el._stdCoords[i+1]);
+                            if (!isValidNum(sx) || !isValidNum(sy)) continue;
+                            
+                            ctx.beginPath();
+                            ctx.arc(sx, sy, dotRadius, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                    }
+
+                    ctx.restore();
                   }
               } catch(e) {}
             });
 
             const renderNode = (el, isHighlightRender = false) => {
               try {
-                // --- REGLA ABSOLUTA 0: NO DIBUJAR NINGUNA CLASE OCULTA ---
                 if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return;
                 
-                if (!showMT && (MT_POLE_CLASSES.includes(el.class) || MT_POLE_CLASSES.includes(Number(el.class)))) return; 
+                if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
                 if (!isNodeValid(el)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
@@ -1273,7 +1357,6 @@
                 const s = getElementStyle(el, isSel, isHov);
                 if (onlyShowConnected && !s.isConnected) return;
                 
-                // Bloque para evitar que los bornes 1113 asociados a las clases invisibles se pinten como circulos rosas/sueltos
                 if (el.class === 1113 && el.master != null) {
                     const masterEl = data.elements.find(m => String(m.id) === String(el.master));
                     if (masterEl) {
@@ -1287,10 +1370,7 @@
                 if (el.class === 52) { 
                     const snap = getNearestNetworkPoint(fx, fy); 
                     if (snap) { sx = rx(snap.x); sy = ry(snap.y); } 
-                } else if ([1122, 1123, 1369].includes(el.class)) {
-                    const snappedEnd = pillarSnaps[el.id];
-                    if (snappedEnd) { sx = rx(snappedEnd.x); sy = ry(snappedEnd.y); }
-                }
+                } 
 
                 const r = Math.max(s.minPixels, s.worldSize * transform.scale);
                 
@@ -1302,15 +1382,12 @@
                 let rawAngDeg = null;
                 if (el.ang !== undefined) rawAngDeg = el.ang;
 
-                // --- LÓGICA DE ROTACIÓN LIMPIA Y DEFINITIVA ---
                 if (rawAngDeg !== null) {
-                    // 1. Prioridad Absoluta: Si trae 'ang' de la BD, se usa sí o sí.
                     let rotRad = (rawAngDeg * Math.PI) / 180;
                     if (exportFlipY) rotRad = -rotRad;
                     if (exportFlipX) rotRad = Math.PI - rotRad;
                     angleRad = rotRad + (edit.rot * Math.PI) / 180;
                 } else {
-                    // 2. Fallback solo si NO trae ángulo
                     if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
                         angleRad = ((computeCtOrientation(el).rotation + edit.rot) * Math.PI) / 180;
                     } else if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
@@ -1321,31 +1398,6 @@
                     }
                 }
 
-                // Si hay bornes asociados, desplazamos el CT para apoyar su base sobre esos bornes
-                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
-                    const linkedTerminals = ctGroups[String(el.id)] || [];
-                    if (linkedTerminals.length > 0) {
-                        let bx = 0, by = 0, cnt = 0;
-                        linkedTerminals.forEach(t => {
-                            const tEdit = manualEdits[t.id] || { dx: 0, dy: 0, rot: 0 };
-                            const tx = rx(t.x + tEdit.dx), ty = ry(t.y + tEdit.dy);
-                            if (isValidNum(tx) && isValidNum(ty)) {
-                                bx += tx; by += ty; cnt++;
-                            }
-                        });
-                        if (cnt > 0) {
-                            const cbx = bx / cnt, cby = by / cnt;
-                            const ux = Math.cos(angleRad), uy = Math.sin(angleRad);
-                            const baseOffset = Math.max(11, transform.scale * 3.2);
-                            sx = cbx + (ux * baseOffset);
-                            sy = cby + (uy * baseOffset);
-                        }
-                    }
-                }
-
-                // ==========================================
-                // REGLA ABSOLUTA 1: SUMINISTROS (MEDIDORES)
-                // ==========================================
                 if (SUPPLY_CLASSES.includes(el.class) || SUPPLY_CLASSES.includes(Number(el.class))) {
                     ctx.rotate(angleRad);
                     const isPotential = el.class === 1373;
@@ -1361,13 +1413,12 @@
                     } else if (transform.scale > 0.35) {
                         ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; 
                         
-                        // Líneas divisorias del círculo (una horizontal en el medio, una vertical abajo)
                         ctx.beginPath(); 
-                        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);       // Línea horizontal central
-                        ctx.moveTo(0, 0); ctx.lineTo(0, r);       // Línea vertical inferior
+                        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);       
+                        ctx.moveTo(0, 0); ctx.lineTo(0, r);       
                         ctx.stroke();
                         
-                        ctx.fillStyle = s.isConnected ? '#334155' : '#64748b'; 
+                        ctx.fillStyle = s.isConnected ? '#525252' : '#a3a3a3'; 
                         ctx.textAlign = 'center';
                         
                         ctx.textBaseline = 'bottom';
@@ -1378,25 +1429,19 @@
                         ctx.textBaseline = 'top';
                         ctx.font = `${Math.max(2.5, r * 0.45)}px "Segoe UI", sans-serif`;
                         
-                        // TEXTO INFERIOR IZQUIERDO: Clientes (cc) o Fases
                         const blText = String(el.cc !== undefined ? el.cc : (el.cl !== undefined ? el.cl : (el.fases !== undefined ? el.fases : (el.f !== undefined ? el.f : '1'))));
                         ctx.fillText(blText, -r * 0.45, r * 0.1);
 
-                        // TEXTO INFERIOR DERECHO: Potencia o Carga (pc)
                         const kwVal = el.pc !== undefined ? el.pc : (el.kw !== undefined ? el.kw : (el.pot !== undefined ? el.pot : (el.carga !== undefined ? el.carga : '')));
-                        // Solo imprimimos si no es vacío y es mayor a cero (evita que el "0" ensucie medidores simples)
                         if (kwVal !== '' && Number(kwVal) > 0) {
                             ctx.fillText(String(kwVal), r * 0.45, r * 0.1);
                         }
                     }
 
                     ctx.restore();
-                    return; // SALIDA INMEDIATA
+                    return; 
                 }
 
-                // ==========================================
-                // DICCIONARIOS Y ELEMENTOS REGULARES (Postes, Transformadores 1461, etc.)
-                // ==========================================
                 let graphicIds = el.gs && el.gs.length > 0 ? el.gs : [el.class];
                 
                 graphicIds.forEach(gId => {
@@ -1406,28 +1451,19 @@
                         ctx.save();
                         ctx.rotate(angleRad);
                         
-                        // NORMALIZACIÓN DE TAMAÑO PARA CTs: 
-                        // Verificamos si la clase principal ES un CT, o si el GRÁFICO (gs) pertenece a la familia CT
                         const isCTGraphic = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class)) ||
                                             CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
                                             
-                        // Si es cualquier tipo de CT, forzamos la escala a 1.0 destruyendo la que trae el diccionario
-                        const graphicScale = isCTGraphic ? 1.0 : (gDef.scale || 1.0);
-                        const renderScale = (r / 2.0) * graphicScale;
+                        let graphicScale = gDef.scale !== undefined ? gDef.scale : 1.0;
+                        const renderScale = (r / (s.worldSize || 1.0)) * graphicScale;
                         
                         ctx.scale(renderScale, -renderScale);
-
-                        // TRASLACIÓN DE ORIGEN PARA CTs: Mueve geométricamente el gráfico para que
-                        // englobe tanto a los bornes como al texto en su interior
-                        if (isCTGraphic) {
-                            ctx.translate(0, -0.35); 
-                        }
 
                         if (gDef.type === 2) {
                             ctx.beginPath();
                             ctx.moveTo(-10, 0);
                             ctx.lineTo(10, 0);
-                            ctx.strokeStyle = gDef.color || s.stroke || "#000";
+                            ctx.strokeStyle = isSel ? '#ef4444' : (isHov ? '#3b82f6' : '#171717');
                             ctx.lineWidth = gDef.scale || (2 / renderScale);
                             if (gDef['line-type'] && gDef['line-type'] !== 'continuous') ctx.setLineDash([5, 5]);
                             ctx.stroke();
@@ -1441,35 +1477,36 @@
 
                                 if (!willStroke && !willFill) {
                                     willStroke = true;
-                                    attr.stroke = "#1e293b";
                                 }
+
+                                const isPilar = [1122, 1123, 1369].includes(el.class) || [1122, 1123, 1369].includes(Number(el.class));
 
                                 if (isSel) {
                                     ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
                                 } else if (isHov) {
                                     ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6';
                                 } else {
-                                    ctx.strokeStyle = attr.stroke || s.stroke;
-                                    ctx.fillStyle = attr.fill || s.fill || '#ffffff';
+                                    // Adaptar los colores de los SVG a la paleta monocromática neutra
+                                    ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' && attr.stroke !== '#272828' ? attr.stroke : (s.stroke || '#171717');
+                                    ctx.fillStyle = attr.fill && attr.fill !== 'none' && attr.fill !== '#ffffff' ? '#d4d4d4' : (s.fill || '#fafafa');
                                     
-                                    // HOMOGENEIZACIÓN DE COLOR CT: 
-                                    // Todo lo que sea o parezca un CT se pinta del gris institucional
                                     if (isCTGraphic) {
-                                        ctx.strokeStyle = '#334155';
-                                        ctx.fillStyle = '#334155';
+                                        ctx.strokeStyle = '#171717';
+                                        ctx.fillStyle = '#525252';
+                                    }
+                                    if (isPilar) {
+                                        ctx.strokeStyle = '#404040'; 
+                                        if (attr.fill === 'none') ctx.fillStyle = '#f5f5f5';
                                     }
                                 }
 
                                 let strokeW = attr['stroke-width'];
-                                if (strokeW === undefined) strokeW = willStroke ? 0.1 : 0;
+                                if (strokeW === undefined) strokeW = willStroke ? 0.5 : 0;
                                 
-                                // BORDES EN NEGRITA PARA CTs
-                                if (isCTGraphic) {
-                                    ctx.lineWidth = Math.max(1.8 / renderScale, strokeW * (1 / renderScale) * 5.0);
-                                } else {
-                                    ctx.lineWidth = Math.max(0.3 / renderScale, strokeW * (1 / renderScale) * 2.5); 
-                                }
-                                
+                                const minPhysicalPixels = (isCTGraphic || isPilar) ? 1.5 : 1.0;
+                                ctx.lineWidth = Math.max(minPhysicalPixels / renderScale, strokeW * (1 / renderScale) * 2.5);
+                                if (isPilar || isCTGraphic) willStroke = true; 
+
                                 const originalAlpha = ctx.globalAlpha;
                                 if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
                                     ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
@@ -1495,7 +1532,6 @@
                                         const absTxtSize = txtSize * renderScale * 1.5;
                                         ctx.save();
                                         
-                                        // Anti-giro para textos embebidos en el diccionario de los CTs
                                         let flipText = false;
                                         if (isCTGraphic) {
                                             let deg = (angleRad * 180) / Math.PI;
@@ -1508,8 +1544,8 @@
                                         
                                         ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
                                         if (!isSel && !isHov) {
-                                            ctx.fillStyle = attr.stroke || attr.fill || '#000000';
-                                            if (isCTGraphic) ctx.fillStyle = '#334155';
+                                            ctx.fillStyle = '#171717';
+                                            if (isCTGraphic) ctx.fillStyle = '#ffffff';
                                         }
                                         
                                         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1548,7 +1584,6 @@
 
                 ctx.restore(); 
 
-                // Textos Embebidos (Solo para postes, cajas y otros. CTs y Suministros se filtraron arriba)
                 if (el.text && Array.isArray(el.text) && el.class !== -2 && el.class !== -3 && el.class !== 1) {
                     el.text.forEach(t => {
                         if (!t) return;
@@ -1580,7 +1615,8 @@
                         
                         if (fontSize >= 5.5) {
                             ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
-                            ctx.fillStyle = el.color === 6 ? '#ef4444' : '#1e293b'; 
+                            // Textos de etiquetas en gris neutro oscuro
+                            ctx.fillStyle = el.color === 6 ? '#ef4444' : '#404040'; 
                             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                             ctx.fillText(String(rawTextStr).trim(), 0, 0);
                         }
@@ -1588,7 +1624,6 @@
                     });
                 }
 
-                // Renderizado Explicito Inteligente de NI (Identificadores) para CTs 
                 const isCT = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class));
                 if (isCT) {
                     let alreadyDrawn = false;
@@ -1603,7 +1638,6 @@
                             ctx.save();
                             ctx.translate(sx, sy);
 
-                            // Ajuste inteligente: el texto rota junto con la base del triángulo pero evitando quedar boca abajo
                             let textAng = angleRad;
                             let deg = (textAng * 180) / Math.PI;
                             deg = ((deg % 360) + 360) % 360;
@@ -1615,11 +1649,10 @@
 
                             ctx.rotate(textAng);
                             ctx.font = `600 ${Math.max(6, 1.8 * transform.scale)}px "Segoe UI", Arial, sans-serif`;
-                            ctx.fillStyle = s.isConnected ? '#334155' : '#64748b';
+                            ctx.fillStyle = s.isConnected ? '#404040' : '#a3a3a3';
                             ctx.textAlign = 'center'; 
                             ctx.textBaseline = 'middle';
                             
-                            // Mantenemos el offset profundo pero con la rotación natural
                             const offset = r * 1.4; 
                             ctx.fillText(String(label), 0, flipped ? offset : -offset);
                             ctx.restore();
@@ -1631,45 +1664,17 @@
               }
             };
 
-            // 3. Primero dibujamos las conexiones de los CTs hacia sus bornes por debajo
-            Object.keys(ctGroups).forEach(mk => {
-              try {
-                  const ct = data.elements.find(e => CT_CLASSES.includes(e.class) && String(e.id) === mk);
-                  if (ct) {
-                    // Ocultamos las líneas de las clases excluidas
-                    if (HIDDEN_CLASSES.includes(ct.class) || HIDDEN_CLASSES.includes(Number(ct.class))) return;
-
-                    const edit = manualEdits[ct.id] || { dx: 0, dy: 0, rot: 0 };
-                    const isSel = selectedFeature?.id === ct.id || pairedFeatureId === String(ct.id);
-                    const s = getElementStyle(ct, isSel, hoveredFeature?.id === ct.id);
-                    if (onlyShowConnected && !s.isConnected) return;
-                    
-                    (ctGroups[mk] || []).forEach(n => {
-                      const nEdit = manualEdits[n.id] || { dx: 0, dy: 0, rot: 0 };
-                      const cx = rx(ct.x + edit.dx), cy = ry(ct.y + edit.dy);
-                      const nx = rx(n.x + nEdit.dx), ny = ry(n.y + nEdit.dy);
-                      if (!isValidNum(cx) || !isValidNum(cy) || !isValidNum(nx) || !isValidNum(ny)) return;
-
-                      ctx.save(); ctx.globalAlpha = s.opacity; ctx.beginPath();
-                      ctx.moveTo(cx, cy); 
-                      ctx.lineTo(nx, ny);
-                      ctx.strokeStyle = s.stroke; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
-                    });
-                  }
-              } catch(e) {}
-            });
-
-            // 4. Dibujar todos los nodos base (Suministros, postes normales, etc.)
+            // 4. Dibujar todos los nodos base
             data.elements.forEach(el => {
                 if (![37, 39, 1122, 1123, 1369, 1113, 1116, 1119, ...CT_CLASSES].includes(el.class)) renderNode(el);
             });
 
-            // 5. Dibujar los Centros de Transformación (CT) en una capa por encima de la red base
+            // 5. Dibujar los Centros de Transformación (CT)
             data.elements.forEach(el => {
                 if (CT_CLASSES.includes(el.class)) renderNode(el);
             });
 
-            // 6. Dibujar Pilares, Cajas y Bornes en la capa superior absoluta
+            // 6. Dibujar Pilares, Cajas y Bornes
             data.elements.forEach(el => {
                 if ([37, 39, 1122, 1123, 1369, 1113, 1116, 1119].includes(el.class)) renderNode(el);
             });
@@ -1683,16 +1688,8 @@
                     renderNode(pairedEl, true);
                 }
             }
-
-            terminalsToDraw.forEach(t => {
-                if (!isValidNum(t.x) || !isValidNum(t.y)) return;
-                ctx.beginPath(); 
-                ctx.arc(t.x, t.y, t.r, 0, 2*Math.PI);
-                ctx.fillStyle = '#166534'; ctx.fill();
-                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(0.3, t.r * 0.25); ctx.stroke();
-            });
             
-          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, getCableOrientationAt, getNearestNetworkPoint, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pillarSnaps, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, graphicsDictionary, lineDictionary]);
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, classDefDictionary, graphicsDictionary, lineDictionary, checkIsCable]);
 
           useEffect(() => {
             const c = canvasRef.current; if (!c || viewMode !== 'map') return;
@@ -1706,7 +1703,7 @@
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                       <IconLayers className="text-blue-400 w-4 h-4" />
-                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.2 (Limpieza Textos)</h1>
+                      <h1 className="font-bold text-[10px] tracking-tight uppercase">Visor GIS v10.7 (Grayscale)</h1>
                   </div>
                   {data && (
                       <form onSubmit={handleSearch} className="flex items-center">
@@ -1819,7 +1816,6 @@
                                   {Object.entries(selectedFeature).map(([k, v]) => {
                                     if (['text', 'x', 'y', '_stdCoords', '_autoDx', '_autoDy', '_overlapIdx'].includes(k)) return null;
                                     
-                                    // 2. Traductor de Atributos Humanos (Metamodel)
                                     let displayKey = k;
                                     if (attrDictionary && attrDictionary[k]) {
                                         displayKey = typeof attrDictionary[k] === 'string' ? attrDictionary[k] : (attrDictionary[k].caption || k);
@@ -1898,7 +1894,7 @@
                                         >
                                             Continuidad del Tramo
                                         </button>
-                                        {!NETWORK_CLASSES.includes(selectedFeature.class) && (
+                                        {!checkIsCable(selectedFeature) && (
                                             <div className="flex gap-1.5 w-full">
                                                 <button 
                                                     onClick={() => handleTrace('upstream')} 
@@ -1918,7 +1914,7 @@
                                 </div>
                             )}
 
-                            {!NETWORK_CLASSES.includes(selectedFeature.class) && (
+                            {!checkIsCable(selectedFeature) && (
                               <div className="bg-white p-3 border-t border-slate-300 shrink-0">
                                 <p className="text-[10px] font-bold text-slate-700 uppercase mb-2">Ajuste Manual</p>
                                 <div className="flex gap-2 mb-2">
@@ -1957,6 +1953,7 @@
                           <textarea className="w-full h-48 p-4 font-mono text-[10px] bg-slate-50 border border-slate-300 rounded outline-none resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="Pega aquí los datos..." value={rawData} onChange={e => setRawData(e.target.value)} />
                           <div className="mt-2 flex gap-2">
                             <button onClick={() => processData(false)} className="bg-blue-600 text-white font-bold py-2 px-4 rounded text-xs hover:bg-blue-700 shadow">Cargar Mapa Nuevo</button>
+                            <button onClick={() => fileInputRef.current?.click()} className="bg-slate-700 text-white font-bold py-2 px-4 rounded text-xs hover:bg-slate-800 shadow flex items-center gap-1 transition-colors"><IconFileText className="w-4 h-4" /> Subir Archivo(s)</button>
                           </div>
                       </div>
 
@@ -1969,6 +1966,21 @@
                           <div className="mt-2 flex items-center gap-3 flex-wrap">
                             <button onClick={() => processDictionaryData(dictRawData)} className="bg-amber-600 text-white font-bold py-2 px-4 rounded text-xs hover:bg-amber-700 shadow transition-colors">Aprender Diccionario</button>
                             
+                            <input 
+                                type="file" 
+                                multiple 
+                                accept=".js,.txt,.json" 
+                                className="hidden" 
+                                ref={fileInputRef} 
+                                onChange={handleFileUpload} 
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()} 
+                                className="bg-slate-700 text-white font-bold py-2 px-4 rounded text-xs hover:bg-slate-800 shadow transition-colors flex items-center gap-2"
+                            >
+                                <IconPlus className="w-4 h-4" /> Cargar Archivos (.js, .txt)
+                            </button>
+
                             {Object.keys(streetDictionary).length > 0 && (
                                 <span className="py-1 px-3 text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 rounded-full animate-pulse">✓ {Object.keys(streetDictionary).length} Calles</span>
                             )}
