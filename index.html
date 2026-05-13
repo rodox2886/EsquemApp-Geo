@@ -1027,6 +1027,30 @@
             try {
               let text = (customText !== null ? customText : rawData).trim(); 
               if (!text) return;
+
+              // Soporte para archivos de recorrido/conectados (ej: RECT={...,arr:{id:{p:[...]}}})
+              if (/\bRECT\s*=/.test(text)) {
+                  try {
+                      const rectObj = new Function(`${text}; return (typeof RECT !== 'undefined' ? RECT : null);`)();
+                      if (rectObj && rectObj.arr && typeof rectObj.arr === 'object') {
+                          const ids = Object.keys(rectObj.arr).map(String);
+                          if (ids.length > 0) {
+                              setConnectedIds(new Set(ids));
+                              setHighlightConnected(true);
+                              setOnlyShowConnected(false);
+                          }
+
+                          // Si hay mapa base cargado, solo aplicamos el resaltado de conectados.
+                          if (data && data.elements && data.elements.length > 0) {
+                              setMessage({ text: `Se cargó recorrido conectado: ${ids.length} IDs resaltados sobre el mapa actual.`, type: 'success' });
+                              setViewMode('map');
+                              return;
+                          }
+                      }
+                  } catch (rectErr) {
+                      console.warn("No se pudo parsear RECT", rectErr);
+                  }
+              }
               
               if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
