@@ -1058,6 +1058,34 @@
                       }
                   } catch (rectErr) {
                       console.warn("No se pudo parsear RECT", rectErr);
+                      // Fallback tolerante: extraer IDs por regex aunque el archivo no sea JS válido.
+                      try {
+                          const ids = [];
+                          const re = /(\d+)\s*:\s*\{\s*idx\s*:\s*[-\d.]+\s*,\s*p\s*:\s*\[/g;
+                          let m;
+                          while ((m = re.exec(text)) !== null) ids.push(String(m[1]));
+                          const uniqueIds = Array.from(new Set(ids));
+                          if (uniqueIds.length > 0) {
+                              setConnectedIds(new Set(uniqueIds));
+                              setHighlightConnected(true);
+                              setOnlyShowConnected(true);
+                              if (data && data.elements && data.elements.length > 0) {
+                                  const existingIds = new Set(data.elements.map(e => String(e.id)));
+                                  const matched = uniqueIds.filter(id => existingIds.has(id)).length;
+                                  const missing = uniqueIds.length - matched;
+                                  setMessage({
+                                      text: matched > 0
+                                          ? `Conectados (modo compatible) cargados: ${matched}/${uniqueIds.length} IDs encontrados.${missing > 0 ? ` (${missing} no encontrados)` : ''}`
+                                          : `Se detectó archivo connected (${uniqueIds.length} IDs), pero no coincide con el mapa cargado.`,
+                                      type: matched > 0 ? 'success' : 'error'
+                                  });
+                                  setViewMode('map');
+                                  return;
+                              }
+                          }
+                      } catch (regexErr) {
+                          console.warn("Fallback regex RECT falló", regexErr);
+                      }
                   }
               }
               
