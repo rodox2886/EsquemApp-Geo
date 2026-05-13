@@ -1037,12 +1037,21 @@
                           if (ids.length > 0) {
                               setConnectedIds(new Set(ids));
                               setHighlightConnected(true);
-                              setOnlyShowConnected(false);
+                              // Lo activamos para que el efecto sea visible inmediatamente al apilar conectados.
+                              setOnlyShowConnected(true);
                           }
 
                           // Si hay mapa base cargado, solo aplicamos el resaltado de conectados.
                           if (data && data.elements && data.elements.length > 0) {
-                              setMessage({ text: `Se cargó recorrido conectado: ${ids.length} IDs resaltados sobre el mapa actual.`, type: 'success' });
+                              const existingIds = new Set(data.elements.map(e => String(e.id)));
+                              const matched = ids.filter(id => existingIds.has(id)).length;
+                              const missing = ids.length - matched;
+                              setMessage({
+                                  text: matched > 0
+                                      ? `Conectados cargados: ${matched}/${ids.length} IDs existen en el mapa actual.${missing > 0 ? ` (${missing} no encontrados)` : ''} Se activó "Solo conectados".`
+                                      : `Se leyó RECT (${ids.length} IDs), pero no coincide con IDs del mapa actual. Revisa que mapa y connected pertenezcan a la misma zona/versión.`,
+                                  type: matched > 0 ? 'success' : 'error'
+                              });
                               setViewMode('map');
                               return;
                           }
