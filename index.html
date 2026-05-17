@@ -4,13 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor GIS Profesional</title>
-
-    <!-- AUTO-CARGA DE DICCIONARIOS: Coloca los archivos .js en la misma carpeta que este HTML -->
-    <!-- Se cargarán silenciosamente al inicio. Si no existen, el visor seguirá funcionando con normalidad. -->
-    <script src="classes.js" onerror="console.warn('classes.js no encontrado, se usará modo basico')"></script>
-    <script src="streets.js" onerror="console.warn('streets.js no encontrado, se usará modo basico')"></script>
-    <script src="areas.js" onerror="console.warn('areas.js no encontrado, se usará modo basico')"></script>
-    <script src="graphics1.js" onerror="console.warn('graphics1.js no encontrado, se usará modo basico')"></script>
     
     <!-- Librerías de React y Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -31,6 +24,7 @@
         const IconEye = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
         const IconEyeOff = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
         const IconFileText = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+        const IconTrash = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
         const IconX = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
         const IconZap = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
         const IconPlus = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -42,11 +36,12 @@
         const getRenderY = (y, flipY) => flipY ? y : -y;
 
         const HIDDEN_CLASSES = [3, 16, 1170, 1232];
-        const CT_CLASSES = [1178, 1179, 1183, 1184, 1185, 1186, 1461];
-        const SUPPLY_CLASSES = [111, 190, 1373, 27];
-        const POLE_CLASSES = [15, 36, 37, 38, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, 1122, 1123, 1369]; 
+        const CT_CLASSES = [1170, 1178, 1179, 1183, 1184, 1185, 1186, 1259, 1461]; // <-- Agregado 1259
+        const SUPPLY_CLASSES = [111, 190, 1330, 1373, 1454];
+        const PILAR_CLASSES = [21, 22, 23, 27, 1122, 1123, 1369];
+        const POLE_CLASSES = [15, 36, 37, 38, 39, 56, 64, 65, 74, 75, 81, 98, 228, 408, 422, ...PILAR_CLASSES]; 
         const MT_LINE_CLASSES = [1089, 1091, 1087, 1088]; 
-        const MT_POLE_CLASSES = [408, 422, 1119]; 
+        const MT_POLE_CLASSES = [408, 422, 1119, 1368]; 
 
         const checkStringForMT = (str) => {
             if (!str) return false;
@@ -72,7 +67,6 @@
             if (MT_LINE_CLASSES.includes(cId)) return true;
             if (MT_POLE_CLASSES.includes(cId)) return true;
             
-            // Eliminamos la clase 36 y 38 de aquí. Solo dejamos el Fusible LIRA (2) y Empalme MT (418)
             if ([2, 418].includes(cId)) return true;
             
             if (el.kv !== undefined && el.kv !== null) {
@@ -110,6 +104,9 @@
             "1": "Manzana",
             "2": "Fusible LIRA c/Seccion",
             "15": "Poste de Madera / H°A°",
+            "21": "Pilar Individual (Nuevo)",
+            "22": "Pilar Doble (Nuevo)",
+            "23": "Pilar Múltiple (Nuevo)",
             "27": "Toma I Doble (Subterranea)",
             "37": "Caja de Entrada y Salida",
             "38": "Caja carenciada trifásica",
@@ -120,6 +117,7 @@
             "65": "Poste de H°A°",
             "74": "Poste Suspensión",
             "75": "Rienda",
+            "78": "Punto de Conexión Gris",
             "81": "Poste Retención",
             "98": "Poste Genérico",
             "111": "Suministro (Medidor)",
@@ -149,17 +147,44 @@
             "1184": "Centro de Transf. a Nivel",
             "1186": "Centro de Transformación (CT)",
             "1219": "Línea Medianera",
+            "1259": "Centro de Conexión a Nivel", // <-- Agregado 1259 al diccionario base
             "1369": "Pilar Doble",
             "1373": "Suministro Potencial",
             "1461": "CT Plataforma Monoposte"
         };
 
         const HARDCODED_GRAPHICS = {
+            1113: { 
+                scale: 0.20, // <-- Mitad de 0.40
+                gs: [
+                    // Trazado modificado para formar un rombo (girado 45 grados)
+                    { type: 5, attr: { d: 'M0,-2.1 L2.1,0 L0,2.1 L-2.1,0 Z', fill: 'none', stroke: '#a3a3a3', 'stroke-width': 0.15 } },
+                    { type: 2, attr: { r: 1.4, fill: '#404040', stroke: 'none' } },
+                    { type: 2, attr: { r: 0.6, fill: '#858585', stroke: 'none' } }
+                ]
+            },
+            37: { 
+                scale: 0.9,
+                gs: [
+                    // Costado Izquierdo (relleno oscuro)
+                    { type: 5, attr: { d: 'M -2.5,-1.5 L -1.5,-1.5 L -1.5,1.5 L -2.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    // Costado Derecho (relleno oscuro)
+                    { type: 5, attr: { d: 'M 1.5,-1.5 L 2.5,-1.5 L 2.5,1.5 L 1.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    // Centro (relleno claro)
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#e5e5e5', stroke: '#111111', 'stroke-width': 0.5 } }
+                ]
+            },
             56: { 
                 scale: 0.9,
                 gs: [
                     { type: 5, attr: { 'stroke-width': 0.25, fill: '#f8fafc', stroke: '#334155', d: 'M-1.8,-2.6 L1.8,-2.6 L1.8,2.6 L-1.8,2.6 Z' } },
                     { type: 5, attr: { 'stroke-width': 0.4, fill: 'none', stroke: '#334155', d: 'M-0.8,-1.2 C1.8,-1.2 -1.8,1.2 0.8,1.2' } }
+                ]
+            },
+            78: { 
+                scale: 0.15, // <-- Reducido a la mitad nuevamente
+                gs: [
+                    { type: 2, attr: { r: 1.0, fill: '#666666', stroke: 'none' } }
                 ]
             },
             2: { 
@@ -173,27 +198,64 @@
             1184: { 
                 scale: 1.0,
                 gs: [
-                    { type: 5, attr: { 'stroke-width': 0.3, stroke: '#1e293b', fill: '#475569', d: 'M0,4 L-4,-4 L4,-4 Z' } }
+                    { type: 5, attr: { 'stroke-width': 0.3, stroke: '#1e293b', fill: '#475569', d: 'M0,3.46 L-3,-1.73 L3,-1.73 Z' } }
+                ]
+            },
+            1461: { 
+                scale: 1.0,
+                gs: [
+                    { type: 5, attr: { 'stroke-width': 0.3, stroke: '#1e293b', fill: '#475569', d: 'M0,3.46 L-3,-1.73 L3,-1.73 Z' } },
+                    { type: 2, attr: { r: 1.1, fill: '#111111', stroke: 'none' } }
+                ]
+            },
+            21: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,-1.5 L 1.5,0 L 0,1.5 L -1.5,0 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } }
+                ]
+            },
+            22: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,-1.5 L 1.5,0 L 0,1.5 L -1.5,0 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 5, attr: { d: 'M 0,-0.75 L 0.75,0 L 0,0.75 L -0.75,0 Z', fill: 'none', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 1, attr: { x1: -1.5, y1: 0, x2: 1.5, y2: 0, stroke: '#111111', 'stroke-width': 0.6 } }
+                ]
+            },
+            23: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,-1.5 L 1.5,0 L 0,1.5 L -1.5,0 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 5, attr: { d: 'M 0,-0.75 L 0.75,0 L 0,0.75 L -0.75,0 Z', fill: 'none', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 1, attr: { x1: 0, y1: -1.5, x2: 0, y2: 1.5, stroke: '#111111', 'stroke-width': 0.6 } }
+                ]
+            },
+            27: { 
+                scale: 1.2,
+                gs: [
+                    { type: 5, attr: { d: 'M 0,-1.5 L 1.5,0 L 0,1.5 L -1.5,0 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 5, attr: { d: 'M 0,-0.75 L 0.75,0 L 0,0.75 L -0.75,0 Z', fill: 'none', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 1, attr: { x1: -1.5, y1: 0, x2: 1.5, y2: 0, stroke: '#111111', 'stroke-width': 0.6 } }
                 ]
             },
             1122: { 
                 scale: 1.2,
                 gs: [
-                    { type: 5, attr: { d: 'M 0,0 L 2.5,0 L 2.5,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } }
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } }
                 ]
             },
             1123: { 
                 scale: 1.2,
                 gs: [
-                    { type: 5, attr: { d: 'M 0,0 L 3.8,0 L 3.8,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } },
-                    { type: 1, attr: { x1: 1.9, y1: 0, x2: 1.9, y2: 2.5, stroke: '#475569', 'stroke-width': 0.2 } }
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 1, attr: { x1: 0, y1: -1.5, x2: 0, y2: 1.5, stroke: '#111111', 'stroke-width': 0.6 } }
                 ]
             },
             1369: { 
                 scale: 1.2,
                 gs: [
-                    { type: 5, attr: { d: 'M 0,0 L 2.5,0 L 2.5,2.5 L 0,2.5 Z', fill: '#f1f5f9', stroke: '#475569', 'stroke-width': 0.25 } },
-                    { type: 1, attr: { x1: 0, y1: 1.25, x2: 2.5, y2: 1.25, stroke: '#475569', 'stroke-width': 0.2 } }
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#f1f5f9', stroke: '#111111', 'stroke-width': 0.6 } },
+                    { type: 1, attr: { x1: -1.5, y1: 0, x2: 1.5, y2: 0, stroke: '#111111', 'stroke-width': 0.6 } }
                 ]
             }
         };
@@ -209,9 +271,8 @@
             "ni": { caption: "Número Identificador (NI)" }
         };
 
-        // Paleta en escala de grises (usada solo como referencia, el motor fuerza gris ahora)
         const HARDCODED_COLORS = {
-            '0.4': "#9ca3af",
+            '0.4': "#1a1a1a",
             '13.2': "#475569",
             '21': "#475569",
             '27': "#475569",
@@ -236,7 +297,6 @@
           const [rawData, setRawData] = useState('');
           const [data, setData] = useState(null);
           const [connectedIds, setConnectedIds] = useState(new Set());
-          const [pendingConnectedIds, setPendingConnectedIds] = useState(null);
           const [message, setMessage] = useState(null); 
           const [selectedFeature, setSelectedFeature] = useState(null);
           const [isToolPanelOpen, setIsToolPanelOpen] = useState(true);
@@ -248,6 +308,7 @@
           const [exportFlipX, setExportFlipX] = useState(false);
           const [showMT, setShowMT] = useState(false);
           const [showStreetNames, setShowStreetNames] = useState(false);
+          const [isCromoMode, setIsCromoMode] = useState(false);
           const [highlightConnected, setHighlightConnected] = useState(true);
           const [onlyShowConnected, setOnlyShowConnected] = useState(false);
           const [manualEdits, setManualEdits] = useState({});
@@ -260,6 +321,25 @@
           const [manualSupplyLinks, setManualSupplyLinks] = useState({});
           const [linkingMode, setLinkingMode] = useState(null);
           const [searchQuery, setSearchQuery] = useState('');
+          const [rectHighlights, setRectHighlights] = useState(null);
+
+          const handleResetMap = useCallback(() => {
+              if (window.confirm("¿Estás seguro de que deseas limpiar el mapa? Se perderán las capas apiladas y conexiones calculadas (los diccionarios se mantendrán).")) {
+                  setData(null);
+                  setConnectedIds(new Set());
+                  setSelectedFeature(null);
+                  setHoveredFeature(null);
+                  setManualEdits({});
+                  setManualSupplyLinks({});
+                  setRectHighlights(null);
+                  setSearchQuery('');
+                  setTransform({ x: 0, y: 0, scale: 1 });
+                  setViewMode('input');
+                  setRawData(''); 
+                  setImportText(''); 
+                  setMessage({ text: 'El mapa ha sido limpiado. Puede cargar nuevos datos.', type: 'success' });
+              }
+          }, []);
 
           const [streetDictionary, setStreetDictionary] = useState({});
           const [classDictionary, setClassDictionary] = useState(DEFAULT_CLASSES);
@@ -272,125 +352,11 @@
           
           const [dictRawData, setDictRawData] = useState('');
 
-          const loadDictionariesFromWindow = useCallback((isAutoLoad = false) => {
-              let foundStreets = 0, foundClasses = 0, foundAreas = 0, foundGraphics = 0, foundAttrs = 0, foundColors = 0, foundLines = 0;
-
-              if (window.STREETS) {
-                  const newStreets = window.STREETS;
-                  setStreetDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newStreets) {
-                          if (newStreets[k] && newStreets[k].name) { dict[k] = newStreets[k].name; foundStreets++; }
-                      }
-                      return dict;
-                  });
-                  delete window.STREETS;
-              }
-
-              if (window.CLASSES) {
-                  const newClasses = window.CLASSES;
-                  setClassDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newClasses) { if (newClasses[k] && newClasses[k].description) dict[k] = newClasses[k].description; }
-                      return dict;
-                  });
-                  setClassDefDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newClasses) { if (newClasses[k]) { dict[k] = newClasses[k]; foundClasses++; } }
-                      return dict;
-                  });
-                  delete window.CLASSES;
-              }
-
-              if (window.AREANAMES) {
-                  const newAreas = window.AREANAMES;
-                  setAreaDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newAreas) { if (newAreas[k] && newAreas[k].name) { dict[k] = newAreas[k].name; foundAreas++; } }
-                      return dict;
-                  });
-                  delete window.AREANAMES;
-              }
-
-              if (window.GRAPHICS) {
-                  const newGraphics = window.GRAPHICS;
-                  setGraphicsDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newGraphics) { if (newGraphics[k]) { dict[k] = newGraphics[k]; foundGraphics++; } }
-                      return dict;
-                  });
-                  delete window.GRAPHICS;
-              }
-
-              if (window.ATTRDEFS) {
-                  const newAttrs = window.ATTRDEFS;
-                  setAttrDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newAttrs) { if (newAttrs[k] && newAttrs[k].caption) { dict[k] = newAttrs[k].caption; foundAttrs++; } }
-                      return dict;
-                  });
-                  delete window.ATTRDEFS;
-              }
-
-              if (window.CUSTOM_LINE) {
-                  const newLines = window.CUSTOM_LINE;
-                  setLineDictionary(prev => {
-                      let dict = { ...prev };
-                      for (let k in newLines) { if (newLines[k] && newLines[k].value) { dict[k] = newLines[k].value; foundLines++; } }
-                      return dict;
-                  });
-                  delete window.CUSTOM_LINE;
-              }
-
-              if (window.CROMO_COLORS) {
-                  const newColors = window.CROMO_COLORS;
-                  setColorDictionary(prev => {
-                      let dict = { ...prev };
-                      if (newColors.nivelTension && newColors.nivelTension.kv) {
-                          for (let k in newColors.nivelTension.kv) { dict[k] = newColors.nivelTension.kv[k]; foundColors++; }
-                      }
-                      const catSalidas = ['salida', 'alimentador', 'trafoMt', 'trafoBt'];
-                      catSalidas.forEach(tipo => {
-                          if (newColors[tipo] && newColors[tipo].colors) {
-                              for (let k in newColors[tipo].colors) {
-                                  const cObj = newColors[tipo].colors[k];
-                                  dict['salida_' + k] = typeof cObj === 'string' ? cObj : (cObj.color || cObj.colorHex);
-                                  foundColors++;
-                              }
-                          }
-                      });
-                      return dict;
-                  });
-                  delete window.CROMO_COLORS;
-              }
-
-              let msgParts = [];
-              if (foundStreets > 0) msgParts.push(`${foundStreets} calles`);
-              if (foundClasses > 0) msgParts.push(`${foundClasses} clases`);
-              if (foundAreas > 0) msgParts.push(`${foundAreas} áreas`);
-              if (foundGraphics > 0) msgParts.push(`${foundGraphics} gráficos`);
-              if (foundAttrs > 0) msgParts.push(`${foundAttrs} atributos`);
-              if (foundLines > 0) msgParts.push(`${foundLines} tipos de línea`);
-              if (foundColors > 0) msgParts.push(`${foundColors} colores`);
-
-              if (msgParts.length > 0) {
-                  setDictRawData('');
-                  setMessage({ text: `¡Diccionarios ${isAutoLoad ? 'auto-cargados al inicio' : 'cargados'}! El visor aprendió: ${msgParts.join(', ')}.`, type: 'success' });
-              } else if (!isAutoLoad) {
-                  setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios o formatos soportados.', type: 'error' });
-              }
-          }, []);
-
-          // Auto-cargar diccionarios al iniciar la app
-          useEffect(() => {
-              loadDictionariesFromWindow(true);
-          }, [loadDictionariesFromWindow]);
-
           const checkIsCable = useCallback((el) => {
               if (!el) return false;
               const cId = Number(el.class);
               
-              if (POLE_CLASSES.includes(cId) || CT_CLASSES.includes(cId) || SUPPLY_CLASSES.includes(cId) || [1113, 1116, 1119, 52, 2, 418].includes(cId)) {
+              if (POLE_CLASSES.includes(cId) || CT_CLASSES.includes(cId) || SUPPLY_CLASSES.includes(cId) || [1113, 1116, 1119, 52, 2, 418, 78].includes(cId)) {
                   return false;
               }
 
@@ -419,7 +385,7 @@
               setManualSupplyLinks(prev => {
                   const next = { ...prev };
                   if (next[fid]) delete next[fid];
-                  const keysToRemove = Object.keys(next).filter(k => next[k] === fid);
+                  const keysToRemove = Object.keys(next).filter(k => next[k] === next[fid]);
                   keysToRemove.forEach(k => delete next[k]);
                   return next;
               });
@@ -429,7 +395,7 @@
               if (!selectedFeature) return null;
               const fid = String(selectedFeature.id);
               if ([111, 190, 1373].includes(selectedFeature.class)) return manualSupplyLinks[fid] || null;
-              else if ([1122, 1123, 1369].includes(selectedFeature.class)) return Object.keys(manualSupplyLinks).find(k => String(manualSupplyLinks[k]) === fid) || null;
+              else if (PILAR_CLASSES.includes(selectedFeature.class)) return Object.keys(manualSupplyLinks).find(k => String(manualSupplyLinks[k]) === fid) || null;
               return null;
           }, [selectedFeature, manualSupplyLinks]);
 
@@ -549,18 +515,18 @@
               if (!data || !selectedFeature) return null;
               const fid = String(selectedFeature.id);
               if ([111, 190, 1373].includes(selectedFeature.class) && manualSupplyLinks[fid]) return manualSupplyLinks[fid];
-              if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+              if (PILAR_CLASSES.includes(selectedFeature.class)) {
                   const sId = Object.keys(manualSupplyLinks).find(k => String(manualSupplyLinks[k]) === fid);
                   if (sId) return sId;
               }
-              if (![1122, 1123, 1369, 111, 190].includes(selectedFeature.class)) return null;
+              if (![...PILAR_CLASSES, 111, 190].includes(selectedFeature.class)) return null;
 
               let seedPillar = null;
-              if ([1122, 1123, 1369].includes(selectedFeature.class)) seedPillar = selectedFeature;
+              if (PILAR_CLASSES.includes(selectedFeature.class)) seedPillar = selectedFeature;
               else {
                   let minDist = Infinity;
                   data.elements.forEach(e => {
-                      if ([1122, 1123, 1369].includes(e.class)) {
+                      if (PILAR_CLASSES.includes(e.class)) {
                           const d = Math.hypot(e.x - selectedFeature.x, e.y - selectedFeature.y);
                           if (d < 30 && d < minDist) { minDist = d; seedPillar = e; }
                       }
@@ -573,7 +539,7 @@
                   while (added) {
                       added = false;
                       data.elements.forEach(e => {
-                          if ([1122, 1123, 1369].includes(e.class) && !clusterP.has(String(e.id))) {
+                          if (PILAR_CLASSES.includes(e.class) && !clusterP.has(String(e.id))) {
                               const isNear = Array.from(clusterP).some(pid => {
                                   const p = data.elements.find(x => String(x.id) === String(pid));
                                   return p && Math.hypot(e.x - p.x, e.y - p.y) < 4.0;
@@ -624,7 +590,7 @@
                               }
                           };
                           clusterPillars.sort(sortFn); clusterSupplies.sort(sortFn);
-                          if ([1122, 1123, 1369].includes(selectedFeature.class)) {
+                          if (PILAR_CLASSES.includes(selectedFeature.class)) {
                               const myIndex = clusterPillars.findIndex(p => String(p.id) === fid);
                               if (myIndex !== -1 && clusterSupplies[myIndex]) return String(clusterSupplies[myIndex].id);
                           } else {
@@ -642,7 +608,7 @@
               const startId = String(selectedFeature.id), newConnected = new Set();
               newConnected.add(startId);
               let traceStartNodeId = pairedFeatureId ? pairedFeatureId : startId;
-              if (pairedFeatureId && [1122, 1123, 1369].includes(selectedFeature.class)) traceStartNodeId = startId;
+              if (pairedFeatureId && PILAR_CLASSES.includes(selectedFeature.class)) traceStartNodeId = startId;
 
               if (mode === 'continuity') {
                   const startChain0 = selectedFeature.chain && selectedFeature.chain.length > 0 ? selectedFeature.chain[0] : null;
@@ -685,7 +651,7 @@
                   addChains(startId);
                   if (pairedFeatureId) addChains(pairedFeatureId);
               }
-              setConnectedIds(newConnected); setHighlightConnected(true); setOnlyShowConnected(false);
+              setConnectedIds(newConnected); setHighlightConnected(true); setOnlyShowConnected(false); setRectHighlights(null);
           }, [data, adjMap, selectedFeature, pairedFeatureId]);
 
           const getNearestNetworkPoint = useCallback((x, y) => {
@@ -753,61 +719,158 @@
             return { rotation: (angleDiff(tipAng1, blockAng) < angleDiff(tipAng2, blockAng) ? rot1 : rot2) };
           }, [data, getStreetAngleAt, exportFlipY, exportFlipX, manualEdits]);
 
-          // FUNCIÓN MODIFICADA: ESCALA DE GRISES OBLIGATORIA (NEUTRA)
+          const effectiveConnectedIds = useMemo(() => {
+              if (!data || connectedIds.size === 0) return connectedIds;
+              const expanded = new Set(connectedIds);
+              
+              const CELL = 2.0;
+              const grid = {};
+              const addPt = (x, y) => {
+                  if (!isValidNum(x) || !isValidNum(y)) return;
+                  const key = `${Math.round(x / CELL)},${Math.round(y / CELL)}`;
+                  if (!grid[key]) grid[key] = [];
+                  grid[key].push({x, y});
+              };
+
+              data.elements.forEach(el => {
+                  if (expanded.has(String(el.id))) {
+                      if (isNodeValid(el)) addPt(el.x, el.y);
+                      if (el._stdCoords && checkIsCable(el)) {
+                          for (let i = 0; i < el._stdCoords.length - 1; i += 2) {
+                              addPt(el._stdCoords[i], el._stdCoords[i+1]);
+                          }
+                      }
+                  }
+              });
+
+              data.elements.forEach(el => {
+                  if (POLE_CLASSES.includes(el.class) && !expanded.has(String(el.id)) && isNodeValid(el)) {
+                      const gx = Math.round(el.x / CELL);
+                      const gy = Math.round(el.y / CELL);
+                      let found = false;
+                      for (let dx = -1; dx <= 1 && !found; dx++) {
+                          for (let dy = -1; dy <= 1 && !found; dy++) {
+                              const cells = grid[`${gx+dx},${gy+dy}`];
+                              if (cells) {
+                                  for (const p of cells) {
+                                      if ((p.x - el.x)**2 + (p.y - el.y)**2 <= 4.0) { 
+                                          expanded.add(String(el.id));
+                                          found = true; break;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              });
+              return expanded;
+          }, [data, connectedIds, checkIsCable]);
+
           const getElementStyle = useCallback((el, isSelected, isHovered) => {
-            const isConnected = connectedIds.size === 0 || connectedIds.has(String(el.id));
-            const isDimmed = connectedIds.size > 0 && highlightConnected && !isConnected;
-            const dimColor = (c) => (isDimmed && c !== '#e5e5e5') ? '#e5e5e5' : c; // Dimming ultra suave
+            const hasConnections = effectiveConnectedIds.size > 0;
+            const isConnected = !hasConnections || effectiveConnectedIds.has(String(el.id));
+            const isDimmed = hasConnections && highlightConnected && !isConnected;
+            const isHighlighted = hasConnections && highlightConnected && isConnected;
             
-            let opacity = isDimmed ? 0.4 : 1.0;
+            const dimColor = (c) => isDimmed ? '#e5e5e5' : c; 
+            let opacity = isDimmed ? 0.15 : 1.0; 
             const SOFT_GRAY_TRANS = 'rgba(229, 229, 229, 0.75)';
             
             let stroke = null; 
-            
-            // Forzamos la escala de grises neutra para todos los cables
-            if ([1093, 1094, 1095, 1096, 1097, 1098, 111, 190].includes(el.class)) stroke = '#737373'; // BT - Gris Medio
-            else if ([1089, 1091, 1087, 1088, 52, 56, 408, 422].includes(el.class)) stroke = '#171717'; // MT - Casi Negro
-            else stroke = '#525252'; // Default gris oscuro
-            
-            // Excepción visual: los postes bases siguen siendo grises
-            if (POLE_CLASSES.includes(el.class) && el.class !== 56 && el.class !== 52) {
-                stroke = '#404040';
-            }
-            
-            let fill = null, worldSize = 1, minPixels = 1.0;
+            let fill = null;
+            let worldSize = 1;
+            let minPixels = 1.0;
             const isPotential = el.class === 1373;
-            
-            if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
-                fill = '#525252'; // CTs en gris oscuro
-                worldSize = 2.5; 
-                minPixels = 3.5;  
+
+            if (isCromoMode) {
+                let cromoColor = null;
+                if (el.kv !== undefined && colorDictionary[String(el.kv)]) {
+                    cromoColor = colorDictionary[String(el.kv)];
+                }
+                if (el.salida !== undefined && colorDictionary['salida_' + el.salida]) {
+                    cromoColor = colorDictionary['salida_' + el.salida];
+                } else if (el.f_alim !== undefined && colorDictionary['salida_' + el.f_alim]) {
+                    cromoColor = colorDictionary['salida_' + el.f_alim];
+                }
+
+                stroke = cromoColor || '#1a1a1a';
+
+                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) {
+                    fill = cromoColor || '#333333';
+                    stroke = '#1a1a1a';
+                    worldSize = 2.5; minPixels = 3.5;
+                } else {
+                    if (el.type === 1) fill = stroke;
+                    if (SUPPLY_CLASSES.includes(el.class)) {
+                        worldSize = 2.7; minPixels = 1.0;
+                        fill = isPotential ? 'rgba(255, 255, 255, 0.5)' : '#b8b8b8'; 
+                        stroke = '#1a1a1a'; 
+                    } else if (el.class === 1113) {
+                        worldSize = 0.25; minPixels = 1.0; // <-- Mitad de 0.5 (Cromo)
+                        fill = 'rgba(0,0,0,0)'; stroke = '#111111';
+                    } else if (el.class === 78) {
+                        worldSize = 0.15; minPixels = 1.0; stroke = 'none'; fill = '#666666'; // <-- Reducido a la mitad nuevamente
+                    } else if (el.class === 52) {
+                        worldSize = 2.4; minPixels = 1.0;
+                        stroke = '#1a1a1a';
+                    } else if (PILAR_CLASSES.includes(el.class)) {
+                        worldSize = 1.6; minPixels = 2.0;
+                        fill = 'rgba(0,0,0,0)'; stroke = '#111111';
+                    } else if ([37, 38, 39].includes(el.class)) {
+                        worldSize = 2; minPixels = 1.0;
+                        fill = 'rgba(0,0,0,0)'; stroke = '#111111';
+                    } else if (el.class === 56) {
+                        worldSize = 2.0; minPixels = 1.0; stroke = '#111111'; fill = 'rgba(0,0,0,0)';
+                    } else if (POLE_CLASSES.includes(el.class)) {
+                        worldSize = 1.7; minPixels = 1.0; stroke = '#111111'; fill = 'rgba(0,0,0,0)';
+                    }
+                }
+
+                if (checkIsCable(el)) {
+                     stroke = cromoColor || '#1a1a1a';
+                }
+
             } else {
-              if (el.type === 1) fill = stroke;
-              if (SUPPLY_CLASSES.includes(el.class)) { 
-                  worldSize = 2.3; minPixels = 1; 
-                  fill = isPotential ? 'rgba(255, 255, 255, 0.5)' : '#f5f5f5'; 
-                  stroke = '#a3a3a3'; 
-              } else if (el.class === 1113) { 
-                  worldSize = 1.8; minPixels = 1.0; 
-              } else if (el.class === 52) { 
-                  worldSize = 2.4; minPixels = 1.0; 
-              } else if ([1122, 1123, 1369].includes(el.class)) { 
-                  worldSize = 1.4; minPixels = 3.0; 
-              } else if ([38, 39].includes(el.class)) { 
-                  worldSize = 2; minPixels = 1.0; 
-              } else if (el.class === 56) { 
-                  worldSize = 2.0; minPixels = 1.5; stroke = '#404040'; fill = '#ffffff'; 
-              } else if (POLE_CLASSES.includes(el.class)) { 
-                  worldSize = 1.7; minPixels = 1.2; 
-              }
+                if ([1093, 1094, 1095, 1096, 1097, 1098, 111, 190].includes(el.class)) stroke = '#737373'; 
+                else if ([1089, 1091, 1087, 1088, 52, 56, 408, 422].includes(el.class)) stroke = '#171717'; 
+                else stroke = '#525252'; 
+                
+                if (POLE_CLASSES.includes(el.class) && el.class !== 56 && el.class !== 52) {
+                    stroke = '#404040';
+                }
+                
+                if (CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class))) { 
+                    fill = '#525252'; worldSize = 2.5; minPixels = 3.5;  
+                } else {
+                  if (el.type === 1) fill = stroke;
+                  if (SUPPLY_CLASSES.includes(el.class)) { 
+                      worldSize = 2.7; minPixels = 1.0; 
+                      fill = isPotential ? 'rgba(255, 255, 255, 0.5)' : '#f5f5f5'; 
+                      stroke = '#a3a3a3'; 
+                  } else if (el.class === 1113) { 
+                      worldSize = 0.25; minPixels = 1.0; // <-- Mitad de 0.5 (Normal)
+                  } else if (el.class === 78) { 
+                      worldSize = 0.15; minPixels = 1.0; stroke = 'none'; fill = '#666666'; // <-- Reducido a la mitad nuevamente
+                  } else if (el.class === 52) { 
+                      worldSize = 2.4; minPixels = 1.0; 
+                  } else if (PILAR_CLASSES.includes(el.class)) { 
+                      worldSize = 1.4; minPixels = 2.0; 
+                      stroke = '#171717';
+                  } else if ([37, 38, 39].includes(el.class)) { 
+                      worldSize = 2; minPixels = 1.0; 
+                  } else if (el.class === 56) { 
+                      worldSize = 2.0; minPixels = 1.0; stroke = '#404040'; fill = '#ffffff'; 
+                  } else if (POLE_CLASSES.includes(el.class)) { 
+                      worldSize = 1.7; minPixels = 1.0; 
+                  }
+                }
             }
-            
-            // Preservar la interactividad de hover (azul) y selección (rojo) 
+
             if (isSelected) { minPixels = Math.max(minPixels, 6); stroke = '#ef4444'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(239, 68, 68, 0.25)'; else if (fill && !isPotential) fill = '#ef4444'; opacity = 1.0; } 
             else if (isHovered) { minPixels = Math.max(minPixels + 1, 4); stroke = '#3b82f6'; if (fill === SOFT_GRAY_TRANS) fill = 'rgba(59, 130, 246, 0.25)'; else if (fill && !isPotential) fill = '#3b82f6'; if (isDimmed) opacity = 0.8; }
             
-            return { stroke: (isSelected || isHovered) ? stroke : dimColor(stroke), fill: fill ? ((isSelected || isHovered) ? fill : dimColor(fill)) : null, worldSize, minPixels, isPolygon: el.closed === 1 || [1, 1219].includes(el.class), opacity, isConnected };
-          }, [connectedIds, highlightConnected]);
+            return { stroke: (isSelected || isHovered) ? stroke : dimColor(stroke), fill: fill ? ((isSelected || isHovered) ? fill : dimColor(fill)) : null, worldSize, minPixels, isPolygon: el.closed === 1 || [1, 1219].includes(el.class), opacity, isConnected, isHighlighted };
+          }, [effectiveConnectedIds, highlightConnected, isCromoMode, colorDictionary, checkIsCable]);
 
           const getMouseWorldCoords = useCallback((clientX, clientY) => {
             if (!canvasRef.current || !data) return { wx: 0, wy: 0, clientX };
@@ -822,8 +885,28 @@
             const r = canvasRef.current.getBoundingClientRect(), mouseCanvasX = clientX - r.left, mouseCanvasY = clientY - r.top;
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale, ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             let cl = null, bestDistScreen = Infinity;
+            
+            const TOLERANCE_PX = 10;
+
             data.elements.forEach(el => {
               if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
+              
+              if (el._bbox) {
+                  const sx1 = rx(el._bbox.minX);
+                  const sx2 = rx(el._bbox.maxX);
+                  const sy1 = ry(el._bbox.minY);
+                  const sy2 = ry(el._bbox.maxY);
+                  
+                  const screenMinX = (sx1 < sx2 ? sx1 : sx2) - TOLERANCE_PX;
+                  const screenMaxX = (sx1 > sx2 ? sx1 : sx2) + TOLERANCE_PX;
+                  const screenMinY = (sy1 < sy2 ? sy1 : sy2) - TOLERANCE_PX;
+                  const screenMaxY = (sy1 > sy2 ? sy1 : sy2) + TOLERANCE_PX;
+                  
+                  if (mouseCanvasX < screenMinX || mouseCanvasX > screenMaxX || mouseCanvasY < screenMinY || mouseCanvasY > screenMaxY) {
+                      return; 
+                  }
+              }
+
               if(isNodeValid(el) && !checkIsCable(el)){ 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const fx = el.x + (el._autoDx || 0) + edit.dx, fy = el.y + (el._autoDy || 0) + edit.dy;
@@ -859,7 +942,7 @@
             
             if (linkingMode) {
                 if (cl && linkingMode.type === 'pillar' && [111, 190, 1373].includes(cl.class)) setManualSupplyLinks(prev => ({ ...prev, [String(cl.id)]: String(linkingMode.id) }));
-                else if (cl && linkingMode.type === 'supply' && [1122, 1123, 1369].includes(cl.class)) setManualSupplyLinks(prev => ({ ...prev, [String(linkingMode.id)]: String(cl.id) }));
+                else if (cl && linkingMode.type === 'supply' && PILAR_CLASSES.includes(cl.class)) setManualSupplyLinks(prev => ({ ...prev, [String(linkingMode.id)]: String(cl.id) }));
                 setLinkingMode(null); return;
             }
 
@@ -875,27 +958,56 @@
             }
           }, [data, getMouseWorldCoords, manualEdits, findNodeAtCursor, transform, selectedFeature, linkingMode, checkIsCable]);
 
+          const rafRef = useRef(null);
+
           const handleMouseMove = useCallback((e) => {
-            if (draggingFeature && featureDragInfo) {
-              if (e.shiftKey) setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, rot: (featureDragInfo.initialEdit.rot + e.clientX - featureDragInfo.startClientX) % 360 } }));
-              else {
-                const coords = getMouseWorldCoords(e.clientX, e.clientY);
-                setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, dx: featureDragInfo.initialEdit.dx + coords.wx - featureDragInfo.startX, dy: featureDragInfo.initialEdit.dy + coords.wy - featureDragInfo.startY } }));
-              }
-            } else if (isDragging) setTransform(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
-            else setHoveredFeature(prev => (prev?.id === findNodeAtCursor(e.clientX, e.clientY)?.id ? prev : findNodeAtCursor(e.clientX, e.clientY)));
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            const shiftKey = e.shiftKey;
+
+            rafRef.current = requestAnimationFrame(() => {
+                if (draggingFeature && featureDragInfo) {
+                  if (shiftKey) setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, rot: (featureDragInfo.initialEdit.rot + clientX - featureDragInfo.startClientX) % 360 } }));
+                  else {
+                    const coords = getMouseWorldCoords(clientX, clientY);
+                    setManualEdits(prev => ({ ...prev, [draggingFeature]: { ...featureDragInfo.initialEdit, dx: featureDragInfo.initialEdit.dx + coords.wx - featureDragInfo.startX, dy: featureDragInfo.initialEdit.dy + coords.wy - featureDragInfo.startY } }));
+                  }
+                } else if (isDragging) {
+                    setTransform(prev => ({ ...prev, x: clientX - dragStart.x, y: clientY - dragStart.y }));
+                } else {
+                    const hovered = findNodeAtCursor(clientX, clientY);
+                    setHoveredFeature(prev => (prev?.id === hovered?.id ? prev : hovered));
+                }
+            });
           }, [draggingFeature, featureDragInfo, isDragging, dragStart, getMouseWorldCoords, findNodeAtCursor]);
 
-          const handleMouseUp = useCallback(() => { setIsDragging(false); setDraggingFeature(null); }, []);
-          const handleMouseLeave = useCallback(() => { setIsDragging(false); setDraggingFeature(null); setHoveredFeature(null); setIsDraggingFile(false); }, []);
+          const handleMouseUp = useCallback(() => { 
+              if (rafRef.current) cancelAnimationFrame(rafRef.current);
+              setIsDragging(false); setDraggingFeature(null); 
+          }, []);
+          
+          const handleMouseLeave = useCallback(() => { 
+              if (rafRef.current) cancelAnimationFrame(rafRef.current);
+              setIsDragging(false); setDraggingFeature(null); setHoveredFeature(null); setIsDraggingFile(false); 
+          }, []);
 
           const handleWheel = useCallback((e) => {
             e.preventDefault();
-            const r = canvasRef.current?.getBoundingClientRect(); if (!r) return;
-            const mx = e.clientX - r.left, my = e.clientY - r.top, zf = Math.exp(-e.deltaY * 0.001);
-            setTransform(p => { 
-              const ns = Math.max(0.000001, Math.min(p.scale * zf, 1000000)); 
-              return { scale: ns, x: mx - (mx - p.x) * (ns / p.scale), y: my - (my - p.y) * (ns / p.scale) }; 
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            const deltaY = e.deltaY;
+
+            rafRef.current = requestAnimationFrame(() => {
+                const r = canvasRef.current?.getBoundingClientRect(); if (!r) return;
+                const mx = clientX - r.left, my = clientY - r.top, zf = Math.exp(-deltaY * 0.001);
+                setTransform(p => { 
+                  const ns = Math.max(0.000001, Math.min(p.scale * zf, 1000000)); 
+                  return { scale: ns, x: mx - (mx - p.x) * (ns / p.scale), y: my - (my - p.y) * (ns / p.scale) }; 
+                });
             });
           }, []);
 
@@ -956,20 +1068,158 @@
               setIsDraggingFile(false); 
           }, []);
 
-          const processDictionaryData = useCallback((text) => {
-              setMessage(null);
-              if (!text || !text.trim()) return;
-
-              try {
-                  const safeText = text.replace(/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/g, 'window.$1 =');
-                  const executeScript = new Function(safeText);
-                  executeScript();
-                  loadDictionariesFromWindow(false);
-              } catch(e) {
-                  console.warn("Fallo inyección de diccionario", e);
-                  setMessage({ text: 'Error al procesar el archivo. Asegúrate de que sea un diccionario válido.', type: 'error' });
+          const processDictionaryData = useCallback((text, silent = false) => {
+              if (!silent) setMessage(null);
+              
+              if (text && typeof text === 'string' && text.trim()) {
+                  try {
+                      const safeText = text.replace(/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/g, 'window.$1 =');
+                      const executeScript = new Function(safeText);
+                      executeScript();
+                  } catch(e) {
+                      console.warn("Fallo inyección de diccionario", e);
+                      if (!silent) setMessage({ text: 'Error al procesar el archivo. Asegúrate de que sea un diccionario válido.', type: 'error' });
+                      return false;
+                  }
               }
-          }, [loadDictionariesFromWindow]);
+
+              let totalFound = 0;
+
+              if (window.STREETS) {
+                  const currentObj = { ...window.STREETS }; delete window.STREETS;
+                  setStreetDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in currentObj) { if (currentObj[k] && currentObj[k].name) { dict[k] = currentObj[k].name; } }
+                      return dict;
+                  });
+                  totalFound++;
+              }
+              
+              if (window.CLASSES) {
+                  const currentObj = { ...window.CLASSES }; delete window.CLASSES;
+                  setClassDictionary(prevDesc => {
+                      let dictDesc = { ...prevDesc };
+                      for (let k in currentObj) { if (currentObj[k] && currentObj[k].description) dictDesc[k] = currentObj[k].description; }
+                      return dictDesc;
+                  });
+                  setClassDefDictionary(prevDefs => {
+                      let dictDefs = { ...prevDefs };
+                      for (let k in currentObj) { if (currentObj[k]) { dictDefs[k] = currentObj[k]; } }
+                      return dictDefs;
+                  });
+                  totalFound++;
+              }
+
+              if (window.AREANAMES) {
+                  const currentObj = { ...window.AREANAMES }; delete window.AREANAMES;
+                  setAreaDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in currentObj) { if (currentObj[k] && currentObj[k].name) { dict[k] = currentObj[k].name; } }
+                      return dict;
+                  });
+                  totalFound++;
+              }
+
+              if (window.GRAPHICS) {
+                  const currentObj = { ...window.GRAPHICS }; delete window.GRAPHICS;
+                  setGraphicsDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in currentObj) { 
+                          if (currentObj[k]) { 
+                              // Omitimos 1113, 78 y 1461 para mantener siempre su diseño vital. 
+                              if (String(k) === '1113' || String(k) === '78' || String(k) === '1461') continue;
+                              dict[k] = currentObj[k]; 
+                          } 
+                      }
+                      return dict;
+                  });
+                  totalFound++;
+              }
+
+              if (window.ATTRDEFS) {
+                  const currentObj = { ...window.ATTRDEFS }; delete window.ATTRDEFS;
+                  setAttrDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in currentObj) { if (currentObj[k] && currentObj[k].caption) { dict[k] = currentObj[k].caption; } }
+                      return dict;
+                  });
+                  totalFound++;
+              }
+
+              if (window.CUSTOM_LINE) {
+                  const currentObj = { ...window.CUSTOM_LINE }; delete window.CUSTOM_LINE;
+                  setLineDictionary(prev => {
+                      let dict = { ...prev };
+                      for (let k in currentObj) { if (currentObj[k] && currentObj[k].value) { dict[k] = currentObj[k].value; } }
+                      return dict;
+                  });
+                  totalFound++;
+              }
+              
+              if (window.CROMO_COLORS) {
+                  const currentObj = { ...window.CROMO_COLORS }; delete window.CROMO_COLORS;
+                  setColorDictionary(prev => {
+                      let dict = { ...prev };
+                      if (currentObj.nivelTension && currentObj.nivelTension.kv) {
+                          for (let k in currentObj.nivelTension.kv) { dict[k] = currentObj.nivelTension.kv[k]; }
+                      }
+                      const catSalidas = ['salida', 'alimentador', 'trafoMt', 'trafoBt'];
+                      catSalidas.forEach(tipo => {
+                          if (currentObj[tipo] && currentObj[tipo].colors) {
+                              for (let k in currentObj[tipo].colors) {
+                                  const cObj = currentObj[tipo].colors[k];
+                                  dict['salida_' + k] = typeof cObj === 'string' ? cObj : (cObj.color || cObj.colorHex);
+                              }
+                          }
+                      });
+                      return dict;
+                  });
+                  totalFound++;
+              }
+              
+              if (!silent) {
+                  if (totalFound > 0) {
+                      setDictRawData('');
+                      setMessage({ text: `¡Diccionarios cargados y procesados correctamente!`, type: 'success' });
+                  } else if (text) {
+                      setMessage({ text: 'El archivo se procesó pero no se identificaron diccionarios o formatos soportados.', type: 'error' });
+                  }
+              }
+              return totalFound > 0;
+          }, []);
+
+          useEffect(() => {
+              const defaultDictFiles = [
+                  'areas.js', 'colors.js', 'metamodel.js', 'graphics1.js', 
+                  'calles.js', 'streets.js', 'classes.js', 'diccionario.js'
+              ];
+              
+              let loadedAny = false;
+              let scriptsToProcess = defaultDictFiles.length;
+
+              const checkAndProcessGlobals = () => {
+                  const found = processDictionaryData('', true); 
+                  if (found) loadedAny = true;
+                  
+                  scriptsToProcess--;
+                  if (scriptsToProcess === 0 && loadedAny) {
+                      setMessage(prev => prev ? prev : { text: 'Diccionarios locales detectados y auto-cargados.', type: 'success' });
+                  }
+              };
+
+              defaultDictFiles.forEach(filename => {
+                  const script = document.createElement('script');
+                  script.src = filename;
+                  script.async = true; 
+                  script.onload = () => checkAndProcessGlobals();
+                  script.onerror = () => {
+                      script.remove(); 
+                      checkAndProcessGlobals(); 
+                  };
+                  document.head.appendChild(script);
+              });
+              
+          }, [processDictionaryData]);
 
           const handleDrop = useCallback((e) => {
             e.preventDefault(); 
@@ -1028,39 +1278,53 @@
             try {
               let text = (customText !== null ? customText : rawData).trim(); 
               if (!text) return;
-
-              // Soporte rápido para archivos de recorrido/conectados (sin eval de JS pesado)
-              if (/\bRECT\s*=/.test(text)) {
-                  const ids = [];
-                  const re = /(\d+)\s*:\s*\{\s*idx\s*:\s*[-\d.]+\s*,\s*p\s*:\s*\[/g;
-                  let m;
-                  while ((m = re.exec(text)) !== null) ids.push(String(m[1]));
-                  const uniqueIds = Array.from(new Set(ids));
-                  if (uniqueIds.length > 0) {
-                      setHighlightConnected(true);
-                      setOnlyShowConnected(true);
-                      if (data && data.elements && data.elements.length > 0) {
-                          setConnectedIds(new Set(uniqueIds));
-                          const existingIds = new Set(data.elements.map(e => String(e.id)));
-                          const matched = uniqueIds.filter(id => existingIds.has(id)).length;
-                          const missing = uniqueIds.length - matched;
-                          setMessage({
-                              text: matched > 0
-                                  ? `Conectados cargados: ${matched}/${uniqueIds.length} IDs encontrados.${missing > 0 ? ` (${missing} no encontrados)` : ''}`
-                                  : `Se detectó connected (${uniqueIds.length} IDs) sin coincidencias con el mapa actual.`,
-                              type: matched > 0 ? 'success' : 'error'
-                          });
-                          setViewMode('map');
-                      } else {
-                          setPendingConnectedIds(uniqueIds);
-                          setMessage({ text: `Connected detectado (${uniqueIds.length} IDs). Se aplicará al cargar el mapa.`, type: 'success' });
-                      }
-                      return;
-                  }
-              }
               
               if (/(?:var\s+|let\s+|const\s+)?\b(GRAPHICS|CLASSES|CUSTOM_LINE|STREETS|AREANAMES|ATTRDEFS|CROMO_COLORS)\s*=/.test(text)) {
                   processDictionaryData(text);
+              }
+
+              if (/\bRECT\s*=/.test(text)) {
+                  try {
+                      let startIdx = text.indexOf('RECT');
+                      startIdx = text.indexOf('{', startIdx);
+                      if (startIdx !== -1) {
+                          let depth = 0, endIdx = -1;
+                          for (let i = startIdx; i < text.length; i++) {
+                              if (text[i] === '{') depth++;
+                              else if (text[i] === '}') {
+                                  depth--;
+                                  if (depth === 0) { endIdx = i; break; }
+                              }
+                          }
+                          if (endIdx !== -1) {
+                              const rectJsonLike = text.substring(startIdx, endIdx + 1);
+                              const parsedRect = new Function('return ' + rectJsonLike)();
+                              
+                              if (parsedRect && parsedRect.arr) {
+                                  const processedRect = {};
+                                  const ids = [];
+                                  
+                                  for (const [id, item] of Object.entries(parsedRect.arr)) {
+                                      ids.push(String(id));
+                                      processedRect[id] = item.idx !== undefined ? item.idx : 0;
+                                  }
+                                  
+                                  setRectHighlights(processedRect);
+                                  setConnectedIds(new Set(ids));
+                                  setHighlightConnected(true);
+                                  setOnlyShowConnected(false); 
+                                  
+                                  setMessage({ text: `Se resaltaron ${ids.length} tramos de la red conectada.`, type: 'success' });
+                                  if (viewMode !== 'map') setViewMode('map');
+                                  if (customText === null) setRawData('');
+                                  setIsImportModalOpen(false);
+                                  return; 
+                              }
+                          }
+                      }
+                  } catch (e) {
+                      console.warn("Fallo procesando RECT", e);
+                  }
               }
 
               const blocks = []; let depth = 0, start = -1;
@@ -1108,28 +1372,6 @@
               });
 
               let combined = [];
-              if (isAppend && data) {
-                  let offsetX = 0, offsetY = 0, isAligned = false;
-                  for (let newEl of newElements) {
-                      if (newEl.id != null) {
-                          const oldEl = data.elements.find(e => String(e.id) === String(newEl.id));
-                          if (oldEl && isValidNum(oldEl.x) && isValidNum(newEl.x)) {
-                              offsetX = oldEl.x - newEl.x; offsetY = oldEl.y - newEl.y; isAligned = true; break;
-                          }
-                      }
-                  }
-
-                  if (isAligned && (Math.abs(offsetX) > 0.001 || Math.abs(offsetY) > 0.001)) {
-                      newElements.forEach(el => {
-                          if (el.x !== undefined) { el.x += offsetX; el.y += offsetY; }
-                          if (el._stdCoords) for (let i = 0; i < el._stdCoords.length; i += 2) { el._stdCoords[i] += offsetX; el._stdCoords[i+1] += offsetY; }
-                          if (el.text && Array.isArray(el.text)) el.text.forEach(t => { if (t && isValidNum(t.x)) t.x += offsetX; if (t && isValidNum(t.y)) t.y += offsetY; });
-                          if (el.from && isValidNum(el.from.x)) { el.from.x += offsetX; el.from.y += offsetY; }
-                          if (el.to && isValidNum(el.to.x)) { el.to.x += offsetX; el.to.y += offsetY; }
-                      });
-                  }
-              }
-
               const uniqueMap = new Map();
               const getGeomHash = (e) => {
                   if (e.id != null && e.id !== "") return String(e.id);
@@ -1150,6 +1392,23 @@
               }
 
               newElements.forEach(el => {
+                  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                  if (isValidNum(el.x) && isValidNum(el.y)) { 
+                      minX = el.x; maxX = el.x; minY = el.y; maxY = el.y; 
+                  }
+                  if (el._stdCoords) {
+                      for (let i = 0; i < el._stdCoords.length; i += 2) {
+                          const cx = el._stdCoords[i], cy = el._stdCoords[i+1];
+                          if (isValidNum(cx) && isValidNum(cy)) {
+                              if (cx < minX) minX = cx;
+                              if (cx > maxX) maxX = cx;
+                              if (cy < minY) minY = cy;
+                              if (cy > maxY) maxY = cy;
+                          }
+                      }
+                  }
+                  if (minX !== Infinity) el._bbox = { minX, maxX, minY, maxY };
+
                   const h = getGeomHash(el);
                   if (h) uniqueMap.set(h, el);
                   else combined.push(el);
@@ -1160,27 +1419,23 @@
               setData(processed); 
               if (customText === null) setRawData(''); 
               setViewMode('map'); setIsToolPanelOpen(false); setIsImportModalOpen(false);
-              if (!isAppend) setTimeout(() => fitToScreenSafe(processed, exportFlipX, exportFlipY), 50);
+              
+              if (!isAppend) {
+                  const tryFit = (attempts = 0) => {
+                      if (canvasRef.current && canvasRef.current.clientWidth > 0) {
+                          fitToScreenSafe(processed, exportFlipX, exportFlipY);
+                      } else if (attempts < 20) {
+                          setTimeout(() => tryFit(attempts + 1), 50);
+                      }
+                  };
+                  tryFit();
+              }
               
               setMessage({ text: 'Mapa cargado correctamente.', type: 'success' });
             } catch (err) { setMessage({ text: 'Error procesando el mapa. Revise la consola.', type: 'error' }); console.error(err); }
           }, [rawData, data, exportFlipX, exportFlipY, fitToScreenSafe, processDictionaryData]);
 
-          useEffect(() => {
-              if (!pendingConnectedIds || !data || !data.elements || data.elements.length === 0) return;
-              setConnectedIds(new Set(pendingConnectedIds));
-              setHighlightConnected(true);
-              setOnlyShowConnected(true);
-              const existingIds = new Set(data.elements.map(e => String(e.id)));
-              const matched = pendingConnectedIds.filter(id => existingIds.has(id)).length;
-              setMessage({
-                  text: `Connected aplicado al mapa: ${matched}/${pendingConnectedIds.length} IDs coinciden.`,
-                  type: matched > 0 ? 'success' : 'error'
-              });
-              setPendingConnectedIds(null);
-          }, [pendingConnectedIds, data]);
-
-          const isTraceable = selectedFeature ? (checkIsCable(selectedFeature) || [39, 1122, 1123, 1369, 1113, 190, 1373, 111].includes(selectedFeature.class)) : false;
+          const isTraceable = selectedFeature ? (checkIsCable(selectedFeature) || [39, 1113, 190, 1373, 111, ...PILAR_CLASSES].includes(selectedFeature.class)) : false;
 
           const getFeatureClassName = (el) => {
               if (!el) return 'Elemento Desconocido';
@@ -1193,12 +1448,23 @@
             const c = canvasRef.current, ctx = c.getContext('2d'), dpr = window.devicePixelRatio || 1, rect = c.getBoundingClientRect();
             c.width = rect.width * dpr; c.height = rect.height * dpr; ctx.scale(dpr, dpr);
             
-            // Fondo blanco puro
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, rect.width, rect.height);
+            // Fondo blanco
+            ctx.fillStyle = '#ffffff'; 
+            ctx.fillRect(0, 0, rect.width, rect.height);
             
             const rx = (x) => transform.x + getRenderX(x, exportFlipX) * transform.scale;
             const ry = (y) => transform.y + getRenderY(y, exportFlipY) * transform.scale;
             
+            const isVisible = (el) => {
+                if (!el._bbox) return true;
+                const sx1 = rx(el._bbox.minX); const sx2 = rx(el._bbox.maxX);
+                const sy1 = ry(el._bbox.minY); const sy2 = ry(el._bbox.maxY);
+                const screenMinX = sx1 < sx2 ? sx1 : sx2; const screenMaxX = sx1 > sx2 ? sx1 : sx2;
+                const screenMinY = sy1 < sy2 ? sy1 : sy2; const screenMaxY = sy1 > sy2 ? sy1 : sy2;
+                const pad = 300; 
+                return !(screenMaxX < -pad || screenMinX > rect.width + pad || screenMaxY < -pad || screenMinY > rect.height + pad);
+            };
+
             const drawnTexts = new Set(); 
 
             const checkAndRegisterText = (text, screenX, screenY, tolerance = 15) => {
@@ -1208,30 +1474,44 @@
                 return false;
             };
 
-            // 1. CAPA BASE Y CALLES (Escala de grises suaves neutros)
+            // 1. CAPA BASE Y CALLES
             data.elements.forEach(el => {
               try {
                   if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return; 
+                  if (!isVisible(el)) return;
 
                   if (el._stdCoords) {
-                      const cDef = classDefDictionary[String(el.class)];
-                      const isManzana = el.class === 1 || el.class === 1219 || (cDef && cDef.type === 'M');
-
-                      if (isManzana) {
+                      if (el.class === 1) {
                           ctx.beginPath(); let m = true;
                           for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
                           ctx.closePath(); 
-                          // Manzanas en gris extra claro neutro
-                          ctx.fillStyle = el.class === 1 ? '#fafafa' : '#ffffff'; 
-                          ctx.fill(); 
-                          ctx.strokeStyle = '#d4d4d4'; 
+                          
+                          if (isCromoMode) {
+                              ctx.fillStyle = '#f2f0e6'; 
+                              ctx.strokeStyle = '#cccccc'; 
+                          } else {
+                              ctx.fillStyle = '#fafafa'; 
+                              ctx.strokeStyle = '#d4d4d4'; 
+                          }
+                          
                           ctx.lineWidth = 0.8; 
+                          ctx.fill(); 
                           ctx.stroke();
                       } else if (!checkIsCable(el) && !POLE_CLASSES.includes(el.class) && !CT_CLASSES.includes(el.class)) {
-                          // Polilíneas genéricas (e.g. veredas, calles)
                           ctx.beginPath(); let m = true;
                           for (let i = 0; i < el._stdCoords.length; i += 2) { const sx = rx(el._stdCoords[i]), sy = ry(el._stdCoords[i+1]); if (m) { ctx.moveTo(sx, sy); m = false; } else ctx.lineTo(sx, sy); }
-                          ctx.strokeStyle = 'rgba(163, 163, 163, 0.4)'; ctx.lineWidth = 1.0; ctx.stroke();
+                          
+                          if (el.class === 1219) {
+                              ctx.strokeStyle = isCromoMode ? 'rgba(150, 150, 150, 0.3)' : 'rgba(200, 200, 200, 0.3)'; 
+                              ctx.lineWidth = 0.5;
+                              ctx.setLineDash([3, 3]);
+                          } else {
+                              ctx.strokeStyle = isCromoMode ? 'rgba(120, 120, 120, 0.4)' : 'rgba(163, 163, 163, 0.4)'; 
+                              ctx.lineWidth = 0.8;
+                              ctx.setLineDash([]);
+                          }
+                          ctx.stroke();
+                          ctx.setLineDash([]);
                       }
                   }
               } catch(e) {}
@@ -1242,6 +1522,7 @@
               try {
                 const isStreetElement = el.class === -2 || el.class === -3 || el.class === 1 || el.class === 1219;
                 if (isStreetElement && !showStreetNames) return;
+                if (!isVisible(el)) return;
 
                 if (el.text && Array.isArray(el.text) && isStreetElement) {
                     el.text.forEach(t => {
@@ -1276,7 +1557,7 @@
                         
                         if (fontSize >= 7.5) {
                             ctx.font = `600 ${fontSize}px "Segoe UI", Arial, sans-serif`;
-                            ctx.fillStyle = '#737373'; // Nombres de calle en gris medio neutro
+                            ctx.fillStyle = isCromoMode ? '#525252' : '#737373'; 
                             ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                             ctx.fillText(displayStr, 0, -1);
                         }
@@ -1290,6 +1571,7 @@
             if (showStreetNames) {
                 data.elements.forEach(el => {
                   try {
+                    if (!isVisible(el)) return;
                     if (el.class === -2 && el._stdCoords && el._stdCoords.length >= 4) {
                         let maxLenSq = -1, bestSx1 = 0, bestSy1 = 0, bestSx2 = 0, bestSy2 = 0;
                         for(let i=0; i<el._stdCoords.length-3; i+=2) {
@@ -1318,7 +1600,8 @@
                                             ctx.save(); ctx.translate(mx, my); ctx.rotate(angRad);
                                             ctx.font = `${fontSize}px "Segoe UI", Arial, sans-serif`;
                                             ctx.textAlign = 'center'; ctx.textBaseline = flipped ? 'top' : 'bottom';
-                                            ctx.fillStyle = '#737373'; ctx.fillText(displayStr, 0, flipped ? 2 : -2); ctx.restore();
+                                            ctx.fillStyle = isCromoMode ? '#525252' : '#737373'; 
+                                            ctx.fillText(displayStr, 0, flipped ? 2 : -2); ctx.restore();
                                         }
                                     }
                                 }
@@ -1329,9 +1612,10 @@
                 });
             }
 
-            // 2. CAPA RED DE CABLES / LÍNEAS DE RED
+            // 2. CAPA RED DE CABLES
             data.elements.forEach(el => {
               try {
+                  if (!isVisible(el)) return;
                   if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
                   if (el._stdCoords && checkIsCable(el)) {
                     const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
@@ -1347,14 +1631,15 @@
                     }
                     ctx.strokeStyle = s.stroke; 
                     
-                    if (el.class === 1097 || el.class === 'Puente') { 
-                        ctx.lineWidth = isSel ? 6 : (isHov ? 5 : 4); 
+                    // Ahora la clase 1097 y 52 (puentes) seguirán un grosor normal y respetarán sus guiones si los tienen
+                    if (el.class === 'Puente' || el.class === 52) { 
+                        ctx.lineWidth = isSel ? 3.5 : (isHov ? 3.0 : 1.5);
                         ctx.setLineDash([]); 
                     } else {
-                        ctx.lineWidth = isSel ? 3.5 : (isHov ? 2.5 : (s.isConnected ? 2.2 : 1.4)); 
+                        // Grosor ajustado: cables normales
+                        ctx.lineWidth = isSel ? 2.5 : (isHov ? 2.0 : 1.0); 
                         
                         let dashArray = [];
-                        
                         let lineTypeName = el['line-type'] || el.lineType || el.tipoLinea || el.tipo_linea || el.lt;
 
                         if (!lineTypeName && classDefDictionary[String(el.class)]) {
@@ -1375,23 +1660,42 @@
 
                         if (lineTypeName) {
                             if (lineDictionary[lineTypeName]) {
-                                dashArray = lineDictionary[lineTypeName].map(v => v * 5.0);
+                                // Multiplicador muy bajo (0.8) para que queden finos y compactos como en el original
+                                dashArray = lineDictionary[lineTypeName].map(v => v * 0.8 * transform.scale); 
                             } else if (lineTypeName === 'continuous') {
                                 dashArray = []; 
+                            } else if (lineTypeName === 'dashed') {
+                                dashArray = [3, 3];
+                            } else if (lineTypeName === 'dotted') {
+                                dashArray = [1, 2];
                             }
+                        } else {
+                            // SI NO ENCUENTRA DICCIONARIO, REGLAS DURAS BASADAS EN CLASES
+                            // Escalamos los guiones en función del zoom actual para que mantengan la proporción visual
+                            const dashScale = transform.scale * 0.2; 
+                            
+                            if ([1091, 1088].includes(Number(el.class))) dashArray = [7 * dashScale, 3 * dashScale]; // Cables subterráneos MT (Trazos largos)
+                            if ([1094, 1095].includes(Number(el.class))) dashArray = [1.5 * dashScale, 1.5 * dashScale]; // Preensamblados/Concéntricos BT (Punteado muuuy fino)
+                            if (Number(el.class) === 1098) dashArray = [6 * dashScale, 2 * dashScale, 2 * dashScale, 2 * dashScale]; // Tramo seco (Trazo largo, punto, trazo largo)
+                            if (Number(el.class) === 1097) dashArray = [1.5 * dashScale, 1.5 * dashScale]; // API/Puente BT punteado fino
                         }
                         
+                        // Fix especial para Cromo Mode: EVITAMOS engrosar las punteadas porque las vuelve "cuadraditos" en vez de rayas
+                        if (dashArray.length > 0 && isCromoMode) {
+                           ctx.lineWidth = isSel ? 3.0 : (isHov ? 2.5 : 1.0); // Dejado en 1.0 (normal)
+                        }
+
                         ctx.setLineDash(dashArray);
                     }
                     ctx.stroke(); 
 
-                    // Nodos grises en los cables con zoom
-                    if (transform.scale > 3) {
+                    // Solo dibujar los vértices si el cable está explícitamente seleccionado
+                    if (isSel) {
                         ctx.setLineDash([]); 
-                        ctx.fillStyle = '#f5f5f5'; 
-                        ctx.strokeStyle = s.stroke; 
-                        ctx.lineWidth = 0.8;
-                        const dotRadius = isSel ? 3.5 : Math.max(2.0, Math.min(3.5, 0.15 * transform.scale));
+                        ctx.fillStyle = '#ffffff'; 
+                        ctx.strokeStyle = '#ef4444'; 
+                        ctx.lineWidth = 1.5;
+                        const dotRadius = 3.0;
                         
                         for (let i = 0; i < el._stdCoords.length; i += 2) {
                             const sx = rx(el._stdCoords[i]);
@@ -1412,18 +1716,25 @@
 
             const renderNode = (el, isHighlightRender = false) => {
               try {
+                if (!isVisible(el)) return;
                 if (HIDDEN_CLASSES.includes(el.class) || HIDDEN_CLASSES.includes(Number(el.class))) return;
                 
+                const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
+                const isHov = hoveredFeature?.id === el.id;
+                const s = getElementStyle(el, isSel, isHov);
+                if (onlyShowConnected && !s.isConnected) return;
+                
+                const isCT = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class));
+                const physicalSize = (s.worldSize || 2) * transform.scale;
+                
+                if (physicalSize < 0.3 && !isCT && !isHighlightRender && !s.isHighlighted && !isSel) return;
+
                 if (!showMT && shouldHideAsMT(el, classDictionary)) return; 
                 if (!isNodeValid(el)) return;
                 
                 const edit = manualEdits[el.id] || { dx: 0, dy: 0, rot: 0 };
                 const fx = el.x + (el._autoDx || 0) + edit.dx;
                 const fy = el.y + (el._autoDy || 0) + edit.dy;
-                const isSel = selectedFeature?.id === el.id || pairedFeatureId === String(el.id);
-                const isHov = hoveredFeature?.id === el.id;
-                const s = getElementStyle(el, isSel, isHov);
-                if (onlyShowConnected && !s.isConnected) return;
                 
                 if (el.class === 1113 && el.master != null) {
                     const masterEl = data.elements.find(m => String(m.id) === String(el.master));
@@ -1472,30 +1783,31 @@
                     
                     ctx.beginPath(); ctx.arc(0, 0, r, 0, 2*Math.PI);
                     if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(); } 
-                    ctx.strokeStyle = s.stroke; ctx.lineWidth = isPotential ? 1.5 : 1.2; ctx.stroke();
+                    
+                    ctx.strokeStyle = s.stroke; ctx.lineWidth = isPotential ? 0.8 : 0.5; ctx.stroke();
                     
                     if (isPotential) { 
                         ctx.font = `300 ${Math.round(r * 1.3)}px "Segoe UI", Arial, sans-serif`; 
                         ctx.fillStyle = s.stroke; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
                         ctx.fillText('P', 0, r * 0.05); 
                     } else if (transform.scale > 0.35) {
-                        ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.8; 
+                        ctx.strokeStyle = s.stroke; ctx.lineWidth = 0.3; 
                         
                         ctx.beginPath(); 
                         ctx.moveTo(-r, 0); ctx.lineTo(r, 0);       
                         ctx.moveTo(0, 0); ctx.lineTo(0, r);       
                         ctx.stroke();
                         
-                        ctx.fillStyle = s.isConnected ? '#525252' : '#a3a3a3'; 
+                        ctx.fillStyle = s.isConnected ? (isCromoMode ? '#1a1a1a' : '#525252') : (isCromoMode ? '#666666' : '#a3a3a3'); 
                         ctx.textAlign = 'center';
                         
                         ctx.textBaseline = 'bottom';
-                        ctx.font = `bold ${Math.max(3, r * 0.6)}px "Segoe UI", sans-serif`;
+                        ctx.font = `${Math.max(3, r * 0.65)}px "Segoe UI", sans-serif`;
                         const topText = String(el.alt !== undefined ? el.alt : (el.ni || el.name || 'S/N'));
                         ctx.fillText(topText, 0, -r * 0.05);
 
                         ctx.textBaseline = 'top';
-                        ctx.font = `${Math.max(2.5, r * 0.45)}px "Segoe UI", sans-serif`;
+                        ctx.font = `${Math.max(2.5, r * 0.5)}px "Segoe UI", sans-serif`;
                         
                         const blText = String(el.cc !== undefined ? el.cc : (el.cl !== undefined ? el.cl : (el.fases !== undefined ? el.fases : (el.f !== undefined ? el.f : '1'))));
                         ctx.fillText(blText, -r * 0.45, r * 0.1);
@@ -1512,6 +1824,14 @@
 
                 let graphicIds = el.gs && el.gs.length > 0 ? el.gs : [el.class];
                 
+                // Forzar el uso del gráfico oficial para 1113 ignorando lo que venga en línea (Liberamos al 1461 para no arruinar su forma)
+                if (Number(el.class) === 1113) graphicIds = [1113];
+                
+                // Evitar que los CTs se vean translúcidos/atenuados (recupera la fuerza visual del programa original)
+                if (CT_CLASSES.includes(Number(el.class))) {
+                    ctx.globalAlpha = 1.0;
+                }
+                
                 graphicIds.forEach(gId => {
                     const gDef = typeof gId === 'object' ? { type: 1, gs: [gId] } : graphicsDictionary[gId];
                     
@@ -1522,6 +1842,12 @@
                         const isCTGraphic = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class)) ||
                                             CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
                                             
+                        const isBoxGraphic = [37, 38, 39].includes(Number(el.class)) || [37, 38, 39].includes(Number(gId));
+
+                        // Corrección: Los bornes, cajas, y fusibles no son postes, deben mantener su opacidad
+                        const isStructure = POLE_CLASSES.includes(el.class) || POLE_CLASSES.includes(Number(el.class));
+                        const isPilarGraphic = PILAR_CLASSES.includes(el.class) || PILAR_CLASSES.includes(Number(gId));
+
                         let graphicScale = gDef.scale !== undefined ? gDef.scale : 1.0;
                         const renderScale = (r / (s.worldSize || 1.0)) * graphicScale;
                         
@@ -1531,8 +1857,8 @@
                             ctx.beginPath();
                             ctx.moveTo(-10, 0);
                             ctx.lineTo(10, 0);
-                            ctx.strokeStyle = isSel ? '#ef4444' : (isHov ? '#3b82f6' : '#171717');
-                            ctx.lineWidth = gDef.scale || (2 / renderScale);
+                            ctx.strokeStyle = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (isCromoMode ? '#111111' : '#171717'));
+                            ctx.lineWidth = gDef.scale || (isCromoMode ? 2.2 / renderScale : 2 / renderScale);
                             if (gDef['line-type'] && gDef['line-type'] !== 'continuous') ctx.setLineDash([5, 5]);
                             ctx.stroke();
                             ctx.setLineDash([]);
@@ -1543,40 +1869,98 @@
                                 let willStroke = attr.stroke && attr.stroke !== 'none';
                                 let willFill = attr.fill && attr.fill !== 'none';
 
-                                if (!willStroke && !willFill) {
-                                    willStroke = true;
-                                }
-
-                                const isPilar = [1122, 1123, 1369].includes(el.class) || [1122, 1123, 1369].includes(Number(el.class));
+                                if (!willStroke && !willFill) willStroke = true;
 
                                 if (isSel) {
-                                    ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444';
+                                    ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444'; willFill = true;
                                 } else if (isHov) {
-                                    ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6';
+                                    ctx.strokeStyle = '#3b82f6'; ctx.fillStyle = '#3b82f6'; willFill = true;
                                 } else {
-                                    // Adaptar los colores de los SVG a la paleta monocromática neutra
-                                    ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' && attr.stroke !== '#272828' ? attr.stroke : (s.stroke || '#171717');
-                                    ctx.fillStyle = attr.fill && attr.fill !== 'none' && attr.fill !== '#ffffff' ? '#d4d4d4' : (s.fill || '#fafafa');
-                                    
                                     if (isCTGraphic) {
-                                        ctx.strokeStyle = '#171717';
-                                        ctx.fillStyle = '#525252';
-                                    }
-                                    if (isPilar) {
-                                        ctx.strokeStyle = '#404040'; 
-                                        if (attr.fill === 'none') ctx.fillStyle = '#f5f5f5';
+                                        ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : (isCromoMode ? '#1a1a1a' : '#404040');
+                                        
+                                        if (attr.fill === 'none') {
+                                            willFill = false;
+                                        } else if (attr.fill) {
+                                            const fL = String(attr.fill).toLowerCase();
+                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#e5e5e5';
+                                            else if (['#000000', '#000', 'black', '#111111', '#222222', '#333333'].includes(fL)) ctx.fillStyle = '#111111';
+                                            else ctx.fillStyle = attr.fill;
+                                            willFill = true;
+                                        } else {
+                                            ctx.fillStyle = isCromoMode ? '#ffffff' : '#e5e5e5';
+                                            willFill = true;
+                                        }
+                                    } else if (isBoxGraphic) {
+                                        ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111';
+                                        if (attr.fill === 'none') {
+                                            willFill = false;
+                                        } else if (attr.fill) {
+                                            const fL = String(attr.fill).toLowerCase();
+                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
+                                            else ctx.fillStyle = attr.fill;
+                                            willFill = true;
+                                        } else {
+                                            ctx.fillStyle = '#f5f5f5';
+                                            willFill = true;
+                                        }
+                                    } else if (isStructure) {
+                                        ctx.strokeStyle = isPilarGraphic ? '#111111' : (attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111');
+                                        willFill = false; 
+                                    } else {
+                                        ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : (isCromoMode ? '#1a1a1a' : '#171717');
+                                        if (attr.fill === 'none') {
+                                            willFill = false;
+                                        } else if (attr.fill) {
+                                            const fL = String(attr.fill).toLowerCase();
+                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#fafafa';
+                                            else ctx.fillStyle = attr.fill;
+                                            willFill = true;
+                                        } else {
+                                            ctx.fillStyle = isCromoMode ? '#ffffff' : '#fafafa';
+                                            willFill = true;
+                                        }
                                     }
                                 }
 
                                 let strokeW = attr['stroke-width'];
-                                if (strokeW === undefined) strokeW = willStroke ? 0.5 : 0;
+                                if (strokeW === undefined) strokeW = willStroke ? 0.25 : 0;
                                 
-                                const minPhysicalPixels = (isCTGraphic || isPilar) ? 1.5 : 1.0;
-                                ctx.lineWidth = Math.max(minPhysicalPixels / renderScale, strokeW * (1 / renderScale) * 2.5);
-                                if (isPilar || isCTGraphic) willStroke = true; 
+                                if (isPilarGraphic) {
+                                    strokeW = Math.max(strokeW !== undefined ? strokeW : 0, 0.6); 
+                                }
+                                
+                                if (isCromoMode && isStructure) {
+                                    let baseThickness = 0.25; 
+                                    if (isPilarGraphic) baseThickness = 0.6;
+                                    let screenPx = baseThickness * renderScale;
+                                    // Limitamos el grosor máximo para que no se engorde al hacer zoom out
+                                    screenPx = Math.max(0.5, Math.min(1.5, screenPx)); 
+                                    ctx.lineWidth = screenPx / renderScale; 
+                                    willStroke = true;
+                                } else {
+                                    let screenPixels = strokeW > 0 ? Math.max(0.5, strokeW * 1.5 * renderScale) : 0;
+                                    if (isPilarGraphic) screenPixels = Math.max(1.0, screenPixels);
+                                    // El límite mágico: no dejamos que la línea crezca desproporcionadamente en pantalla
+                                    screenPixels = Math.min(1.5, screenPixels); 
+                                    ctx.lineWidth = screenPixels / renderScale;
+                                }
+                                
+                                // Para las cajas específicamente (ej: 37), forzamos un contorno aún más fino
+                                if (isBoxGraphic) {
+                                    ctx.lineWidth = 0.4 / renderScale;
+                                }
+                                
+                                if (isStructure || isCTGraphic) willStroke = true; 
+                                
+                                if (!isSel && !isHov && isPilarGraphic) {
+                                    ctx.strokeStyle = '#111111'; // Refuerza el negro en caso de heredar algo suave
+                                }
 
                                 const originalAlpha = ctx.globalAlpha;
-                                if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
+                                if (isCromoMode && isStructure) {
+                                    ctx.globalAlpha = 1.0; 
+                                } else if (attr['fill-opacity'] !== undefined && !isSel && !isHov) {
                                     ctx.globalAlpha = originalAlpha * attr['fill-opacity'];
                                 }
 
@@ -1600,29 +1984,31 @@
                                         const absTxtSize = txtSize * renderScale * 1.5;
                                         ctx.save();
                                         
-                                        let flipText = false;
-                                        if (isCTGraphic) {
-                                            let deg = (angleRad * 180) / Math.PI;
-                                            deg = ((deg % 360) + 360) % 360;
-                                            if (deg > 90 && deg <= 270) flipText = true;
-                                        }
-
+                                        // Aquí se resolvió el doble flip conflictivo, forzando la orientación exacta del adjunto
                                         ctx.scale(1/renderScale, -1/renderScale); 
-                                        if (flipText) ctx.rotate(Math.PI);
                                         
                                         ctx.font = `bold ${absTxtSize}px "Segoe UI", Arial, sans-serif`;
                                         if (!isSel && !isHov) {
-                                            ctx.fillStyle = '#171717';
-                                            if (isCTGraphic) ctx.fillStyle = '#ffffff';
+                                            ctx.fillStyle = isCromoMode ? '#1a1a1a' : '#171717';
+                                            if (isCTGraphic) ctx.fillStyle = '#9ca3af'; // Gris slate (coincide exacto con la imagen)
                                         }
                                         
                                         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                                         
                                         let txtX = (attr.x || 0) * renderScale;
                                         let txtY = -(attr.y || 0) * renderScale;
-                                        if (flipText) { txtX = -txtX; txtY = -txtY; }
 
-                                        ctx.fillText(textContent, txtX, txtY);
+                                        // Movemos el origen al centro del texto
+                                        ctx.translate(txtX, txtY);
+                                        
+                                        // Auto-rotación inteligente para que el texto nunca quede de cabeza
+                                        let screenDeg = (angleRad * 180) / Math.PI;
+                                        screenDeg = ((screenDeg % 360) + 360) % 360;
+                                        if (!isCTGraphic && screenDeg > 90 && screenDeg <= 270) {
+                                            ctx.rotate(Math.PI);
+                                        }
+                                        
+                                        ctx.fillText(textContent, 0, 0);
                                         ctx.restore();
                                     }
                                 } else if (isValidNum(attr.width) && isValidNum(attr.height)) { 
@@ -1649,6 +2035,96 @@
                         ctx.restore();
                     }
                 });
+
+                // OVERLAY INFALIBLE Y CENTRADO PARA CTs (Contorno para todos, círculo negro para 1461):
+                if (CT_CLASSES.includes(Number(el.class))) {
+                    let cx = 0, cy = 0;
+                    let cRadius = 1.2; 
+                    let maxArea = -1;
+                    let trianglePts = null; // <-- Nueva variable para guardar los vértices del triángulo
+                    
+                    // 1. Escaneamos TODO el gráfico buscando la forma MÁS GRANDE (el triángulo) para su centro real
+                    graphicIds.forEach(gId => {
+                        const gDef = typeof gId === 'object' ? { type: 1, gs: [gId] } : graphicsDictionary[gId];
+                        if (gDef && gDef.gs) {
+                            for (let g of gDef.gs) {
+                                if (g && g.attr) {
+                                    let nums = null;
+                                    // Extraemos las coordenadas del SVG
+                                    if (g.attr.d) nums = g.attr.d.match(/-?\d+(\.\d+)?([eE][+-]?\d+)?/g);
+                                    else if (g.attr.points) nums = g.attr.points.match(/-?\d+(\.\d+)?([eE][+-]?\d+)?/g);
+                                    
+                                    if (nums && nums.length >= 6) {
+                                        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                                        let pts = [];
+                                        
+                                        for (let i = 0; i < nums.length - 1; i += 2) {
+                                            let px = parseFloat(nums[i]), py = parseFloat(nums[i+1]);
+                                            if (isValidNum(px) && isValidNum(py)) {
+                                                if (px < minX) minX = px; if (px > maxX) maxX = px;
+                                                if (py < minY) minY = py; if (py > maxY) maxY = py;
+                                                
+                                                // Filtrar puntos duplicados para sacar los verdaderos vértices
+                                                if (!pts.some(p => Math.abs(p.x - px) < 0.05 && Math.abs(p.y - py) < 0.05)) {
+                                                    pts.push({x: px, y: py});
+                                                }
+                                            }
+                                        }
+                                        
+                                        let area = (maxX - minX) * (maxY - minY);
+                                        
+                                        // Si es la figura de mayor área, es nuestro triángulo base
+                                        if (area > maxArea && pts.length >= 3) {
+                                            maxArea = area;
+                                            trianglePts = pts; // <-- Guardamos los puntos para dibujar el contorno
+                                            cx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+                                            cy = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+                                            cRadius = Math.max(maxX - minX, maxY - minY) * 0.30; // Aumentado al 30% para devorar el anillo gris por completo
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 2. Dibujamos el contorno y el disco negro aplicando la misma transformación espacial
+                    ctx.save();
+                    ctx.globalAlpha = 1.0; // Fuerza total
+                    ctx.rotate(angleRad);
+                    
+                    let graphicScale = 1.0;
+                    graphicIds.forEach(gId => {
+                        const gDef = typeof gId === 'object' ? { type: 1, gs: [gId] } : graphicsDictionary[gId];
+                        if (gDef && gDef.scale !== undefined) graphicScale = gDef.scale;
+                    });
+                    const renderScale = (r / (s.worldSize || 1.0)) * graphicScale;
+                    
+                    ctx.scale(renderScale, -renderScale);
+
+                    // A. Redibujar el contorno fuerte del triángulo original (PARA TODOS LOS CTs)
+                    if (trianglePts && trianglePts.length >= 3) {
+                        ctx.beginPath();
+                        ctx.moveTo(trianglePts[0].x, trianglePts[0].y);
+                        for (let i = 1; i < trianglePts.length; i++) {
+                            ctx.lineTo(trianglePts[i].x, trianglePts[i].y);
+                        }
+                        ctx.closePath();
+                        // Aplicamos color fuerte, o rojo/azul si está interactuando
+                        ctx.strokeStyle = isSel ? '#ef4444' : (isHov ? '#3b82f6' : (isCromoMode ? '#1a1a1a' : '#1e293b')); 
+                        ctx.lineWidth = Math.max(0.15, 0.8 / renderScale); // Reducido significativamente para que sea más fino
+                        ctx.stroke();
+                    }
+
+                    // B. Dibujar el centro negro sólido (SOLO PARA EL CT 1461)
+                    if (Number(el.class) === 1461) {
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, cRadius, 0, 2 * Math.PI); 
+                        ctx.fillStyle = '#111111';
+                        ctx.fill();
+                    }
+                    
+                    ctx.restore();
+                }
 
                 ctx.restore(); 
 
@@ -1683,8 +2159,37 @@
                         
                         if (fontSize >= 5.5) {
                             ctx.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
-                            // Textos de etiquetas en gris neutro oscuro
-                            ctx.fillStyle = el.color === 6 ? '#ef4444' : '#404040'; 
+                            
+                            let isCTText = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class));
+                            
+                            if (!isCTText && !el.master) {
+                                // Búsqueda espacial ESTRICTA: solo si las coordenadas del texto caen físicamente dentro del triángulo (radio 3.5m)
+                                // Esto evita darle vuelta a la S del Borne u otros nodos adyacentes.
+                                let txWorld = isValidNum(t.x) ? t.x : el.x;
+                                let tyWorld = isValidNum(t.y) ? t.y : el.y;
+
+                                const strictlyInsideCT = data.elements.find(o => 
+                                    (CT_CLASSES.includes(o.class) || CT_CLASSES.includes(Number(o.class))) && 
+                                    Math.hypot((o.x||0) - txWorld, (o.y||0) - tyWorld) < 3.5
+                                );
+                                if (strictlyInsideCT) isCTText = true;
+                            }
+
+                            let txtColor = isCromoMode ? '#1a1a1a' : '#404040';
+                            if (isCTText) {
+                                txtColor = '#9ca3af'; // Gris slate (como en el adjunto)
+                            } else if (el.color === 6) {
+                                txtColor = '#ef4444'; // Rojo si es color 6 y no es un CT
+                            }
+                            
+                            // Auto-rotación inteligente para que el texto nunca quede de cabeza
+                            let screenDeg = (textAngleRad * 180) / Math.PI;
+                            screenDeg = ((screenDeg % 360) + 360) % 360;
+                            if (!isCTText && screenDeg > 90 && screenDeg <= 270) {
+                                ctx.rotate(Math.PI);
+                            }
+                            
+                            ctx.fillStyle = txtColor; 
                             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                             ctx.fillText(String(rawTextStr).trim(), 0, 0);
                         }
@@ -1692,7 +2197,6 @@
                     });
                 }
 
-                const isCT = CT_CLASSES.includes(el.class) || CT_CLASSES.includes(Number(el.class));
                 if (isCT) {
                     let alreadyDrawn = false;
                     if (el.text && Array.isArray(el.text)) {
@@ -1707,22 +2211,14 @@
                             ctx.translate(sx, sy);
 
                             let textAng = angleRad;
-                            let deg = (textAng * 180) / Math.PI;
-                            deg = ((deg % 360) + 360) % 360;
-                            let flipped = false;
-                            if (deg > 90 && deg <= 270) {
-                                textAng += Math.PI;
-                                flipped = true;
-                            }
-
                             ctx.rotate(textAng);
                             ctx.font = `600 ${Math.max(6, 1.8 * transform.scale)}px "Segoe UI", Arial, sans-serif`;
-                            ctx.fillStyle = s.isConnected ? '#404040' : '#a3a3a3';
+                            ctx.fillStyle = '#9ca3af'; // Fuerza gris slate
                             ctx.textAlign = 'center'; 
                             ctx.textBaseline = 'middle';
                             
                             const offset = r * 1.4; 
-                            ctx.fillText(String(label), 0, flipped ? offset : -offset);
+                            ctx.fillText(String(label), 0, -offset);
                             ctx.restore();
                         }
                     }
@@ -1734,7 +2230,7 @@
 
             // 4. Dibujar todos los nodos base
             data.elements.forEach(el => {
-                if (![37, 39, 1122, 1123, 1369, 1113, 1116, 1119, ...CT_CLASSES].includes(el.class)) renderNode(el);
+                if (![37, 39, 78, 1113, 1116, 1119, ...PILAR_CLASSES, ...CT_CLASSES].includes(el.class)) renderNode(el);
             });
 
             // 5. Dibujar los Centros de Transformación (CT)
@@ -1742,9 +2238,9 @@
                 if (CT_CLASSES.includes(el.class)) renderNode(el);
             });
 
-            // 6. Dibujar Pilares, Cajas y Bornes
+            // 6. Dibujar Pilares, Cajas y Bornes (Y Nodos que van por encima de las líneas)
             data.elements.forEach(el => {
-                if ([37, 39, 1122, 1123, 1369, 1113, 1116, 1119].includes(el.class)) renderNode(el);
+                if ([37, 39, 78, 1113, 1116, 1119, ...PILAR_CLASSES].includes(el.class)) renderNode(el);
             });
 
             if (selectedFeature && isNodeValid(selectedFeature)) {
@@ -1757,7 +2253,7 @@
                 }
             }
             
-          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, classDefDictionary, graphicsDictionary, lineDictionary, checkIsCable]);
+          }, [data, transform, viewMode, connectedIds, showMT, highlightConnected, onlyShowConnected, getElementStyle, getStreetAngleAt, computeCtOrientation, exportFlipX, exportFlipY, manualEdits, selectedFeature, hoveredFeature, pairedFeatureId, streetDictionary, showStreetNames, classDictionary, classDefDictionary, graphicsDictionary, lineDictionary, checkIsCable, rectHighlights, isCromoMode]);
 
           useEffect(() => {
             const c = canvasRef.current; if (!c || viewMode !== 'map') return;
@@ -1790,12 +2286,14 @@
                 </div>
                 <div className="flex gap-2">
                   {data && (
-                      <button 
-                          onClick={() => setIsImportModalOpen(true)} 
-                          className="px-3 py-1 bg-amber-600 text-white rounded text-[9px] font-bold hover:bg-amber-500 transition-colors shadow flex items-center gap-1"
-                      >
-                          <IconPlus className="w-3 h-3" /> Apilar
-                      </button>
+                      <>
+                          <button 
+                              onClick={() => setIsImportModalOpen(true)} 
+                              className="px-3 py-1 bg-amber-600 text-white rounded text-[9px] font-bold hover:bg-amber-500 transition-colors shadow flex items-center gap-1"
+                          >
+                              <IconPlus className="w-3 h-3" /> Apilar
+                          </button>
+                      </>
                   )}
                   <button onClick={() => setShowStreetNames(!showStreetNames)} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-1 transition-colors ${showStreetNames ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{showStreetNames ? <IconEye className="w-3 h-3" /> : <IconEyeOff className="w-3 h-3" />} Calles</button>
                   <button onClick={() => setShowMT(!showMT)} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-1 transition-colors ${showMT ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}>{showMT ? <IconEye className="w-3 h-3" /> : <IconEyeOff className="w-3 h-3" />} MT</button>
@@ -1828,8 +2326,8 @@
                                     placeholder="Pega aquí los nuevos datos..." 
                                 />
                                 <div className="flex justify-end gap-2 mt-2">
-                                    <button onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded text-xs hover:bg-slate-300 transition-colors">Cancelar</button>
-                                    <button onClick={() => processData(true, importText)} disabled={!importText.trim()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors shadow">Apilar Datos</button>
+                                    <button onClick={() => { setIsImportModalOpen(false); setImportText(''); }} className="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded text-xs hover:bg-slate-300 transition-colors">Cancelar</button>
+                                    <button onClick={() => { processData(true, importText); setImportText(''); }} disabled={!importText.trim()} className="px-4 py-2 bg-blue-600 text-white font-bold rounded text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors shadow">Apilar Datos</button>
                                 </div>
                             </div>
                         </div>
@@ -1855,13 +2353,17 @@
                             <div className="space-y-1">
                                <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={exportFlipY} onChange={e => {setExportFlipY(e.target.checked); if(data) setTimeout(()=>fitToScreenSafe(data, exportFlipX, e.target.checked),0);}} /> Inv. N-S</label>
                                <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={exportFlipX} onChange={e => {setExportFlipX(e.target.checked); if(data) setTimeout(()=>fitToScreenSafe(data, e.target.checked, exportFlipY),0);}} /> Inv. E-O</label>
+                               <label className="flex items-center gap-2 cursor-pointer font-medium text-amber-700 mt-2 border-t pt-1 border-slate-100">
+                                   <input type="checkbox" checked={isCromoMode} onChange={e => setIsCromoMode(e.target.checked)} className="accent-amber-600" /> 
+                                   <strong>Cromo (Color Clásico)</strong>
+                               </label>
                             </div>
                             {connectedIds.size > 0 && (
                               <div className="pt-2 border-t border-slate-100 space-y-2">
                                 <p className="font-bold text-blue-800 uppercase text-[9px] flex items-center gap-1"><IconZap className="w-3 h-3"/> Conexión ({connectedIds.size})</p>
                                 <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={highlightConnected} onChange={e => setHighlightConnected(e.target.checked)} /> Resaltar</label>
                                 <label className="flex items-center gap-2 cursor-pointer font-medium"><input type="checkbox" checked={onlyShowConnected} onChange={e => setOnlyShowConnected(e.target.checked)} /> Solo conectados</label>
-                                <button onClick={() => { setConnectedIds(new Set()); setOnlyShowConnected(false); setHighlightConnected(true); }} className="w-full py-1 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-bold">Limpiar</button>
+                                <button onClick={() => { setConnectedIds(new Set()); setOnlyShowConnected(false); setHighlightConnected(true); setRectHighlights(null); }} className="w-full py-1 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-bold">Limpiar</button>
                               </div>
                             )}
                           </div>
@@ -1905,7 +2407,7 @@
                               </table>
                             </div>
                             
-                            {([1122, 1123, 1369, 111, 190, 1373].includes(selectedFeature.class)) && (
+                            {([111, 190, 1373, ...PILAR_CLASSES].includes(selectedFeature.class)) && (
                                 <div className="bg-white p-3 border-t border-slate-300 shrink-0">
                                     <p className="text-[10px] font-bold text-slate-700 uppercase mb-2">Vínculo de Suministro</p>
                                     {currentManualLink ? (
@@ -1948,7 +2450,7 @@
                                         </p>
                                         {connectedIds.size > 0 && (
                                             <button 
-                                                onClick={() => { setConnectedIds(new Set()); setHighlightConnected(false); }} 
+                                                onClick={() => { setConnectedIds(new Set()); setHighlightConnected(false); setRectHighlights(null); }} 
                                                 className="text-[9px] font-bold text-red-600 hover:text-red-800 transition-colors"
                                             >
                                                 [ Limpiar ]
