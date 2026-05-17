@@ -1843,6 +1843,7 @@
                                             CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
                                             
                         const isBoxGraphic = [37, 38, 39].includes(Number(el.class)) || [37, 38, 39].includes(Number(gId));
+                        const isMonoTriBox = [38, 39].includes(Number(el.class)) || [38, 39].includes(Number(gId));
 
                         // Corrección: Los bornes, cajas, y fusibles no son postes, deben mantener su opacidad
                         const isStructure = POLE_CLASSES.includes(el.class) || POLE_CLASSES.includes(Number(el.class));
@@ -1892,17 +1893,34 @@
                                             willFill = true;
                                         }
                                     } else if (isBoxGraphic) {
-                                        ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111';
-                                        if (attr.fill === 'none') {
-                                            willFill = false;
-                                        } else if (attr.fill) {
-                                            const fL = String(attr.fill).toLowerCase();
-                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
-                                            else ctx.fillStyle = attr.fill;
-                                            willFill = true;
+                                        // Para cajas 38/39: replicar exactamente el relleno del modo base (como en CT se fuerza su comportamiento)
+                                        // y dejar que en cromo solo cambie el contorno.
+                                        if (isMonoTriBox) {
+                                            ctx.strokeStyle = '#111111';
+                                            if (attr.fill === 'none') {
+                                                willFill = false;
+                                            } else if (attr.fill) {
+                                                const fL = String(attr.fill).toLowerCase();
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                                willFill = true;
+                                            } else {
+                                                ctx.fillStyle = '#f5f5f5';
+                                                willFill = true;
+                                            }
                                         } else {
-                                            ctx.fillStyle = '#f5f5f5';
-                                            willFill = true;
+                                            ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111';
+                                            if (attr.fill === 'none') {
+                                                willFill = false;
+                                            } else if (attr.fill) {
+                                                const fL = String(attr.fill).toLowerCase();
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                                willFill = true;
+                                            } else {
+                                                ctx.fillStyle = '#f5f5f5';
+                                                willFill = true;
+                                            }
                                         }
                                     } else if (isStructure) {
                                         ctx.strokeStyle = isPilarGraphic ? '#111111' : (attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111');
