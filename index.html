@@ -174,6 +174,23 @@
                     { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#e5e5e5', stroke: '#111111', 'stroke-width': 0.5 } }
                 ]
             },
+            38: {
+                scale: 0.9,
+                gs: [
+                    { type: 5, attr: { d: 'M -2.5,-1.5 L -1.5,-1.5 L -1.5,1.5 L -2.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    { type: 5, attr: { d: 'M 1.5,-1.5 L 2.5,-1.5 L 2.5,1.5 L 1.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#e5e5e5', stroke: '#111111', 'stroke-width': 0.5 } },
+                    { type: 1, attr: { x1: 0, y1: -1.2, x2: 0, y2: 1.2, stroke: '#111111', 'stroke-width': 0.45 } }
+                ]
+            },
+            39: {
+                scale: 0.9,
+                gs: [
+                    { type: 5, attr: { d: 'M -2.5,-1.5 L -1.5,-1.5 L -1.5,1.5 L -2.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    { type: 5, attr: { d: 'M 1.5,-1.5 L 2.5,-1.5 L 2.5,1.5 L 1.5,1.5 Z', fill: '#333333', stroke: '#111111', 'stroke-width': 0.2 } },
+                    { type: 5, attr: { d: 'M -1.5,-1.5 L 1.5,-1.5 L 1.5,1.5 L -1.5,1.5 Z', fill: '#e5e5e5', stroke: '#111111', 'stroke-width': 0.5 } }
+                ]
+            },
             56: { 
                 scale: 0.9,
                 gs: [
@@ -1826,6 +1843,7 @@
                 
                 // Forzar el uso del gráfico oficial para 1113 ignorando lo que venga en línea (Liberamos al 1461 para no arruinar su forma)
                 if (Number(el.class) === 1113) graphicIds = [1113];
+                if ([38, 39].includes(Number(el.class))) graphicIds = [Number(el.class)];
                 
                 // Evitar que los CTs se vean translúcidos/atenuados (recupera la fuerza visual del programa original)
                 if (CT_CLASSES.includes(Number(el.class))) {
@@ -1843,6 +1861,7 @@
                                             CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
                                             
                         const isBoxGraphic = [37, 38, 39].includes(Number(el.class)) || [37, 38, 39].includes(Number(gId));
+                        const isMonoTriBox = [38, 39].includes(Number(el.class)) || [38, 39].includes(Number(gId));
 
                         // Corrección: Los bornes, cajas, y fusibles no son postes, deben mantener su opacidad
                         const isStructure = POLE_CLASSES.includes(el.class) || POLE_CLASSES.includes(Number(el.class));
@@ -1892,17 +1911,34 @@
                                             willFill = true;
                                         }
                                     } else if (isBoxGraphic) {
-                                        ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111';
-                                        if (attr.fill === 'none') {
-                                            willFill = false;
-                                        } else if (attr.fill) {
-                                            const fL = String(attr.fill).toLowerCase();
-                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
-                                            else ctx.fillStyle = attr.fill;
-                                            willFill = true;
+                                        // Para cajas 38/39: replicar exactamente el relleno del modo base (como en CT se fuerza su comportamiento)
+                                        // y dejar que en cromo solo cambie el contorno.
+                                        if (isMonoTriBox) {
+                                            ctx.strokeStyle = '#111111';
+                                            if (attr.fill === 'none') {
+                                                willFill = false;
+                                            } else if (attr.fill) {
+                                                const fL = String(attr.fill).toLowerCase();
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                                willFill = true;
+                                            } else {
+                                                ctx.fillStyle = '#f5f5f5';
+                                                willFill = true;
+                                            }
                                         } else {
-                                            ctx.fillStyle = '#f5f5f5';
-                                            willFill = true;
+                                            ctx.strokeStyle = attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111';
+                                            if (attr.fill === 'none') {
+                                                willFill = false;
+                                            } else if (attr.fill) {
+                                                const fL = String(attr.fill).toLowerCase();
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                                willFill = true;
+                                            } else {
+                                                ctx.fillStyle = '#f5f5f5';
+                                                willFill = true;
+                                            }
                                         }
                                     } else if (isStructure) {
                                         ctx.strokeStyle = isPilarGraphic ? '#111111' : (attr.stroke && attr.stroke !== 'none' ? attr.stroke : '#111111');
