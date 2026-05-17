@@ -1898,14 +1898,9 @@
                                             willFill = false;
                                         } else if (attr.fill) {
                                             const fL = String(attr.fill).toLowerCase();
-                                            if (isMonoTriBox) {
-                                                // En cromo, 38/39 mantienen el relleno del modo base: sólo cambia el contorno
-                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = '#f5f5f5';
-                                                else ctx.fillStyle = attr.fill;
-                                            } else {
-                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
-                                                else ctx.fillStyle = attr.fill;
-                                            }
+                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
+                                            else if (isCromoMode && isMonoTriBox && ['#000000', '#000', 'black', '#111111', '#222222', '#333333'].includes(fL)) ctx.fillStyle = '#f5f5f5';
+                                            else ctx.fillStyle = attr.fill;
                                             willFill = true;
                                         } else {
                                             ctx.fillStyle = '#f5f5f5';
