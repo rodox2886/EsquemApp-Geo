@@ -1843,6 +1843,7 @@
                                             CT_CLASSES.includes(gId) || CT_CLASSES.includes(Number(gId));
                                             
                         const isBoxGraphic = [37, 38, 39].includes(Number(el.class)) || [37, 38, 39].includes(Number(gId));
+                        const isMonoTriBox = [38, 39].includes(Number(el.class)) || [38, 39].includes(Number(gId));
 
                         // Corrección: Los bornes, cajas, y fusibles no son postes, deben mantener su opacidad
                         const isStructure = POLE_CLASSES.includes(el.class) || POLE_CLASSES.includes(Number(el.class));
@@ -1897,8 +1898,14 @@
                                             willFill = false;
                                         } else if (attr.fill) {
                                             const fL = String(attr.fill).toLowerCase();
-                                            if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
-                                            else ctx.fillStyle = attr.fill;
+                                            if (isMonoTriBox) {
+                                                // En cromo, 38/39 mantienen el relleno del modo base: sólo cambia el contorno
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                            } else {
+                                                if (['#ffffff', 'white'].includes(fL)) ctx.fillStyle = isCromoMode ? '#ffffff' : '#f5f5f5';
+                                                else ctx.fillStyle = attr.fill;
+                                            }
                                             willFill = true;
                                         } else {
                                             ctx.fillStyle = '#f5f5f5';
